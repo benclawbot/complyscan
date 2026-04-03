@@ -1,0 +1,23 @@
+﻿PROMPT 3: THE HABIT GAMIFIER
+This prompt makes Claude build you an interactive habit tracking dashboard — with points, streaks, levels, and gamification mechanics. One prompt, fully interactive. You can customise the habits, scoring, and goals to your life.
+
+
+The prompt (copy-paste ready):
+
+
+Build me an interactive habit tracking dashboard as an artifact. I want to gamify my daily routine.
+
+
+Include these features:
+- A list of daily habits I can check off (exercise, reading, deep work, meditation, journaling, no social media before noon, 8 hours sleep, healthy eating)
+- A points system: each habit completed = 10 points. Completing ALL habits in a day = 50 bonus points.
+- A streak tracker: show current streak for each habit and an overall daily streak
+- Streak multiplier: after 7 consecutive days of completing all habits, points are multiplied by 1.5x. After 30 days, 2x.
+- A level system: Level 1 = 0 points, Level 2 = 500 points, Level 3 = 1500 points, Level 4 = 3000 points, Level 5 = 5000 points. Show current level and progress bar to next level.
+- A weekly overview showing which days were completed
+- Clean, modern dark UI. Make it look premium, not like a toy.
+
+
+Store all data in the browser so it persists between sessions. Make the habits editable — I want to be able to add, remove, and rename habits.
+
+Pro tip to include: Once it builds the dashboard, ask Claude to customise it further — add specific habits, change the scoring system, add a mood tracker, or connect it to your goals from the Life Audit. You can keep iterating on it.
