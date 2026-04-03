@@ -27,7 +27,7 @@ Use the files by authority, not by convenience:
 6. Builders and Reviewers use `WORKING.md` keys at `TASK-NNN/subtask-NN` scope by default.
 7. Before work starts, and after any structural state change, run `python3 scripts/repo_doctor.py --check`.
 8. If `repo_doctor.py` reports an invariant failure, stop and set `NEEDS_HUMAN` unless the failure is a purely mechanical sync issue that `--sync-project` fixes.
-9. **Scope confirmation before first action.** On every task — including S-tier — state the full definition of done before making any changes. If the request is "a sheet with charts," done = sheet + charts. Not "sheet with data, then maybe charts later." If the brief is ambiguous, restate and confirm before touching anything.
+9. If the request is ambiguous, ask. If it is clear and certainty ≥ 95%, execute without asking for confirmation.
 
 ## 2. Approval Model
 
