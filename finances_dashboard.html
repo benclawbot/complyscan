@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thomas Chaffanjet — Financial Dashboard 2025/26</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  :root {
+    --bg: #0b0b10;
+    --surface: #13131a;
+    --surface2: #1c1c26;
+    --border: #252535;
+    --accent: #6c63ff;
+    --accent2: #00e5a0;
+    --red: #ff5f5f;
+    --orange: #ff9f43;
+    --green: #00b894;
+    --text: #e8e8f4;
+    --text-dim: #7a7a90;
+    --radius: 14px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  h1 { font-size: 1.6rem; font-weight: 800; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  h2 { font-size: 1.05rem; font-weight: 600; color: var(--text); margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { font-size: 0.85rem; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
+
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; flex-wrap: wrap; gap: 12px; }
+  .period { color: var(--text-dim); font-size: 0.85rem; font-weight: 400; }
+  .updated { color: var(--text-dim); font-size: 0.75rem; }
+
+  /* KPI Cards */
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; }
+  .kpi-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 6px; }
+  .kpi-value { font-size: 1.6rem; font-weight: 800; color: var(--text); }
+  .kpi-sub { font-size: 0.72rem; color: var(--text-dim); margin-top: 3px; }
+  .kpi.good .kpi-value { color: var(--green); }
+  .kpi.bad .kpi-value { color: var(--red); }
+  .kpi.warn .kpi-value { color: var(--orange); }
+
+  /* Alert */
+  .alert { background: rgba(255,95,95,0.08); border: 1px solid var(--red); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; }
+  .alert-icon { font-size: 1.4rem; }
+  .alert-text { font-size: 0.88rem; }
+  .alert-text strong { color: var(--red); }
+  .alert-text span { color: var(--text-dim); }
+
+  /* Charts */
+  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .chart-full { grid-column: 1 / -1; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .chart-wrap { position: relative; }
+  .chart-wrap img { width: 100%; border-radius: 8px; display: block; }
+
+  /* Month Table */
+  .month-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .month-table th { color: var(--text-dim); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.68rem; padding: 8px 12px; text-align: right; border-bottom: 1px solid var(--border); }
+  .month-table th:first-child { text-align: left; }
+  .month-table td { padding: 9px 12px; text-align: right; border-bottom: 1px solid #1e1e2a; }
+  .month-table td:first-child { text-align: left; font-weight: 500; }
+  .month-table tr:hover { background: rgba(255,255,255,0.02); }
+  .month-table .income { color: var(--green); font-weight: 600; }
+  .month-table .expenses { color: var(--red); font-weight: 600; }
+  .month-table .net { font-weight: 700; }
+  .month-table .net.pos { color: var(--green); }
+  .month-table .net.neg { color: var(--red); }
+  .month-table .balance { color: var(--accent2); font-weight: 600; }
+  .month-table .balance.low { color: var(--orange); }
+  .month-table .balance.crit { color: var(--red); }
+
+  /* Category Table */
+  .cat-section { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 24px; }
+  .cat-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  .cat-table th { color: var(--text-dim); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.65rem; padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--border); }
+  .cat-table th:first-child { text-align: left; }
+  .cat-table td { padding: 7px 10px; text-align: right; border-bottom: 1px solid #1e1e2a; }
+  .cat-table td:first-child { text-align: left; }
+  .cat-table .cat-bar { display: flex; align-items: center; gap: 8px; }
+  .cat-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .cat-name { font-weight: 500; }
+  .cat-total { font-weight: 700; color: var(--accent2); }
+  .cat-pct { color: var(--text-dim); font-size: 0.72rem; }
+
+  /* Recommendations */
+  .recs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 24px; }
+  .rec { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+  .rec-icon { font-size: 1.3rem; margin-bottom: 6px; }
+  .rec-title { font-weight: 700; font-size: 0.9rem; margin-bottom: 4px; }
+  .rec-desc { font-size: 0.78rem; color: var(--text-dim); line-height: 1.5; }
+  .rec.impact-high { border-color: var(--red); background: rgba(255,95,95,0.04); }
+  .rec.impact-high .rec-title { color: var(--red); }
+
+  footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 0.72rem; color: var(--text-dim); text-align: center; }
+
+  @media (max-width: 768px) {
+    .charts { grid-template-columns: 1fr; }
+    .cat-section { grid-template-columns: 1fr; }
+    .recs { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>💶 Thomas Chaffanjet — Financial Dashboard</h1>
+    <div class="period">Full Year: April 2025 → March 2026 &nbsp;|&nbsp; 12 months &nbsp;|&nbsp; PostFinance CH18 0900 0000 1272 6983 6</div>
+  </div>
+  <div class="updated">Generated 2026-04-03</div>
+</div>
+
+<!-- KPIs -->
+<div class="kpi-row">
+  <div class="kpi">
+    <div class="kpi-label">Annual Income</div>
+    <div class="kpi-value good">CHF 213,584</div>
+    <div class="kpi-sub">Salary + allowances + refunds</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Annual Expenses</div>
+    <div class="kpi-value bad">CHF 206,134</div>
+    <div class="kpi-sub">All spending (12 months)</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Net Savings</div>
+    <div class="kpi-value warn">CHF 7,450</div>
+    <div class="kpi-sub">Only 3.5% savings rate</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Avg Monthly Expenses</div>
+    <div class="kpi-value">CHF 17,178</div>
+    <div class="kpi-sub">vs 136,484 gross salary/year</div>
+  </div>
+  <div class="kpi warn">
+    <div class="kpi-label">Buffer (Mar 2026)</div>
+    <div class="kpi-value">CHF 9,089</div>
+    <div class="kpi-sub">Only 0.5 months expenses</div>
+  </div>
+  <div class="kpi bad">
+    <div class="kpi-label">Tobacco (annual)</div>
+    <div class="kpi-value">CHF 7,800</div>
+    <div class="kpi-sub">+CHF 2,400 health insurance</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Months in Deficit</div>
+    <div class="kpi-value">6 / 12</div>
+    <div class="kpi-sub">May, Jul, Oct, Dec, Feb, Mar</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Lowest Buffer</div>
+    <div class="kpi-value" style="color:var(--red)">CHF 2,378</div>
+    <div class="kpi-sub">End of December 2025</div>
+  </div>
+</div>
+
+<!-- Alert -->
+<div class="alert">
+  <div class="alert-icon">🚨</div>
+  <div class="alert-text">
+    <strong>CHF 7,800/year on tobacco</strong> — nearly your entire net savings (CHF 7,450).
+    Quitting would DOUBLE your savings rate. This is the single biggest lever.
+    <br><span>Plus: health insurance surcharges for smokers, long-term health costs, and the income ceiling caused by a job you stay in partly due to the financial dependency.</span>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="charts">
+  <div class="card chart-full">
+    <h2>📈 Monthly Income vs Expenses — CHF</h2>
+    <div class="chart-wrap"><img src="finances_charts/income_vs_expenses.png" alt="Income vs Expenses"></div>
+  </div>
+
+  <div class="card">
+    <h2>🏦 Running Balance</h2>
+    <div class="chart-wrap"><img src="finances_charts/balance.png" alt="Balance"></div>
+  </div>
+
+  <div class="card">
+    <h2>📊 Savings Rate & Cost Structure</h2>
+    <div class="chart-wrap"><img src="finances_charts/key_metrics.png" alt="Key Metrics"></div>
+  </div>
+
+  <div class="card chart-full">
+    <h2>🧱 Expense Categories Over Time</h2>
+    <div class="chart-wrap"><img src="finances_charts/expenses_stacked.png" alt="Expenses stacked"></div>
+  </div>
+
+  <div class="card">
+    <h2>🥧 Annual Expense Breakdown</h2>
+    <div class="chart-wrap"><img src="finances_charts/expenses_pie.png" alt="Pie chart"></div>
+  </div>
+
+  <div class="card">
+    <h2>📋 Category Comparison</h2>
+    <div class="chart-wrap"><img src="finances_charts/categories_grouped.png" alt="Categories"></div>
+  </div>
+</div>
+
+<!-- Month by Month -->
+<div class="card" style="margin-bottom:24px;">
+  <h2>📅 Month-by-Month Summary</h2>
+  <table class="month-table">
+    <thead>
+      <tr>
+        <th>Month</th>
+        <th>Income</th>
+        <th>Expenses</th>
+        <th>Net</th>
+        <th>Balance</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Apr 2025</td><td class="income">+21,357</td><td class="expenses">14,032</td><td class="net pos">+7,325</td><td class="balance">8,964</td></tr>
+      <tr><td>May 2025</td><td class="income">+20,733</td><td class="expenses">26,331</td><td class="net neg">-5,598</td><td class="balance low">3,366</td></tr>
+      <tr><td>Jun 2025</td><td class="income">+15,365</td><td class="expenses">7,556</td><td class="net pos">+7,809</td><td class="balance">11,176</td></tr>
+      <tr><td>Jul 2025</td><td class="income">+17,897</td><td class="expenses">21,760</td><td class="net neg">-3,863</td><td class="balance low">7,313</td></tr>
+      <tr><td>Aug 2025</td><td class="income">+11,691</td><td class="expenses">11,347</td><td class="net pos">+344</td><td class="balance low">7,657</td></tr>
+      <tr><td>Sep 2025</td><td class="income">+31,400</td><td class="expenses">27,918</td><td class="net pos">+3,482</td><td class="balance">11,139</td></tr>
+      <tr><td>Oct 2025</td><td class="income">+21,447</td><td class="expenses">29,140</td><td class="net neg">-7,693</td><td class="balance crit">3,446</td></tr>
+      <tr><td>Nov 2025</td><td class="income">+14,017</td><td class="expenses">8,972</td><td class="net pos">+5,044</td><td class="balance low">8,490</td></tr>
+      <tr><td>Dec 2025</td><td class="income">+17,143</td><td class="expenses">23,255</td><td class="net neg">-6,112</td><td class="balance crit">2,378 ⚠️</td></tr>
+      <tr><td>Jan 2026</td><td class="income">+13,891</td><td class="expenses">6,028</td><td class="net pos">+7,863</td><td class="balance">10,241</td></tr>
+      <tr><td>Feb 2026</td><td class="income">+12,896</td><td class="expenses">13,717</td><td class="net neg">-821</td><td class="balance low">9,420</td></tr>
+      <tr><td>Mar 2026</td><td class="income">+15,747</td><td class="expenses">16,079</td><td class="net neg">-332</td><td class="balance low">9,089</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Category Breakdown -->
+<div class="cat-section">
+  <div class="card">
+    <h2>💸 Estimated Annual Expenses by Category</h2>
+    <table class="cat-table">
+      <thead><tr><th>Category</th><th>CHF/year</th><th>%</th></tr></thead>
+      <tbody>
+        <tr><td><div class="cat-bar"><span class="cat-dot" style="background:#2c3e50"></span>Housing (Rent)</div></td><td>31,320</td><td class="cat-pct">15.2%</td></tr>
+        <tr><td><div class="cat-bar"><span class="cat-dot" style="background:#8e44ad"></span>Health Insurance</div></td><td>22,056</td><td class="cat-pct">10.7%</td></tr>
+        <tr><td><div class="cat-bar"><span class="cat-dot" style="background:#795548"></span>Cantonal Tax</div></td><td>17,232</td><td class="cat-pct">8.4%</td></tr>
+        <tr><td><div class="cat-bar"><span class="cat-dot" style="background:#27ae60"></span>Groceries</div></td><td>14,583</td><td class="cat-pct">7.1%</td></tr>
+        <tr><td><div class="cat-bar"><span class="cat-dot" style="background:#7f8c8d"></span>Tobacco</div></td><td>7,800</td><td class="cat-pct">3.8%</td></tr>
+        <tr><td><div class="cat-bar"><span class="cat-dot" style="background:#e67e22"></span>Restaurants</div></td><td>5,250</td><td class="cat-pct">2.5%</td></tr>
+        <tr><td><div class="cat-bar"><span class="cat-dot" style="background:#3498db"></span>Transport</div></td><td>4,800</td><td class="cat-pct">2.3%</td></tr>
+        <tr><td><div class="cat-bar"><span class="cat-dot" style="background:#e74c3c"></span>Entertainment</div></td><td>3,900</td><td class="cat-pct">1.9%</td></tr>
+        <tr><td><div class="cat-bar"><span class="cat-dot" style="background:#16a085"></span>Kids Activities</div></td><td>4,330</td><td class="cat-pct">2.1%</td></tr>
+        <tr><td><div class="cat-bar"><span class="cat-dot" style="background:#34495e"></span>Phone/Internet</div></td><td>1,800</td><td class="cat-pct">0.9%</td></tr>
+        <tr><td><div class="cat-bar"><span class="cat-dot" style="background:#607d8b"></span>Savings Transfers</div></td><td>8,846</td><td class="cat-pct">4.3%</td></tr>
+        <tr><td><div class="cat-bar"><span class="cat-dot" style="background:#bdc3c7"></span>Other / Uncategorized</div></td><td>84,217</td><td class="cat-pct">40.8%</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:0.72rem;color:var(--text-dim);margin-top:10px;">Note: "Other" includes savings transfers, investments, and items not individually parsed. Full transaction-level analysis pending.</p>
+  </div>
+
+  <div class="card">
+    <h2>🎯 Priority Actions</h2>
+    <div class="recs" style="margin-top:0;grid-template-columns:1fr;">
+      <div class="rec impact-high">
+        <div class="rec-icon">🚭</div>
+        <div class="rec-title">Quit smoking — saves CHF 7,800/year</div>
+        <div class="rec-desc">This alone would more than double your net savings rate from 3.5% to ~8%. Nicotine patches/gum handle the chemical dependency. The routine replacement is the hard part — needs a substitute (walking, chewing gum, exercise). Health insurance savings on top.</div>
+      </div>
+      <div class="rec">
+        <div class="rec-icon">🛒</div>
+        <div class="rec-title">Groceries: target CHF 1,500/month from ~2,000</div>
+        <div class="rec-desc">Family of 4 in Switzerland should budget CHF 1,200-1,500/month for groceries. Current estimate: CHF 2,000+. Bulk buy at Denner/Lidl, reduce impulse buys, plan meals. Saves ~CHF 500/month.</div>
+      </div>
+      <div class="rec">
+        <div class="rec-icon">💍</div>
+        <div class="rec-title">Address the marriage dynamic</div>
+        <div class="rec-desc">You said it feels tense, lack of intimacy. The job frustration and financial stress are likely the root cause — and also the effect. More financial breathing room reduces tension. Marriage counseling if needed once budget is healthier.</div>
+      </div>
+      <div class="rec">
+        <div class="rec-icon">💼</div>
+        <div class="rec-title">Build side income — even CHF 1,000/month changes everything</div>
+        <div class="rec-desc">CHF 1,000/month side income invested at 7% = CHF 250k in 15 years. Your skills as a PM + interest in automation/AI make this realistic. Start with one client, one product, or one platform.</div>
+      </div>
+      <div class="rec">
+        <div class="rec-icon">📊</div>
+        <div class="rec-title">6 months in deficit — fix the buffer first</div>
+        <div class="rec-desc">Buffer went from CHF 10k to CHF 9k over 12 months despite earning well. At CHF 17k/month expenses, you need minimum CHF 34k buffer (2 months). Currently CHF 9k. Target: CHF 20k emergency fund before investing.</div>
+      </div>
+      <div class="rec">
+        <div class="rec-icon">📈</div>
+        <div class="rec-title">Stop investing until emergency fund is built</div>
+        <div class="rec-desc">You mentioned bad investment outcomes. With only CHF 9k buffer and a family of 4 on one income, investing in depreciating assets while uninsured properly is the wrong priority. Build the 3-6 month emergency fund in cash first.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Thomas Chaffanjet Financial Dashboard — Generated 2026-04-03 &nbsp;|&nbsp;
+  Data: PostFinance statements Apr 2025–Mar 2026 &nbsp;|&nbsp;
+  Estimates based on PDF analysis. Category breakdowns are approximate pending full transaction parsing.
+</footer>
+</body>
+</html>

@@ -1,0 +1,544 @@
+{
+  "Apr 2025": {
+    "totals": {
+      "income": 21357.05,
+      "expenses": 14032.24,
+      "balance": 1639.21
+    },
+    "transactions": [
+      {
+        "type": "credit",
+        "amount": 622.0,
+        "date": "07.04.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 183.5,
+        "date": "07.04.25",
+        "description": "REFERENCES:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 150.0,
+        "date": "07.04.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 455.0,
+        "date": "25.04.25",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 11378.75,
+        "date": "30.04.25",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      }
+    ]
+  },
+  "May 2025": {
+    "totals": {
+      "income": 20733.4,
+      "expenses": 26331.26,
+      "balance": 8964.02
+    },
+    "transactions": [
+      {
+        "type": "credit",
+        "amount": 622.0,
+        "date": "07.05.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 615.55,
+        "date": "08.05.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 329.25,
+        "date": "15.05.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 420.0,
+        "date": "22.05.25",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 120.0,
+        "date": "22.05.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 11378.75,
+        "date": "30.05.25",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      }
+    ]
+  },
+  "Jun 2025": {
+    "totals": {
+      "income": 15365.29,
+      "expenses": 7555.75,
+      "balance": 3366.16
+    },
+    "transactions": [
+      {
+        "type": "credit",
+        "amount": 622.0,
+        "date": "06.06.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 350.0,
+        "date": "19.06.25",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 11378.75,
+        "date": "30.06.25",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      }
+    ]
+  },
+  "Jul 2025": {
+    "totals": {
+      "income": 17896.67,
+      "expenses": 21759.67,
+      "balance": 11175.7
+    },
+    "transactions": [
+      {
+        "type": "credit",
+        "amount": 622.0,
+        "date": "07.07.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 92.95,
+        "date": "07.07.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 120.0,
+        "date": "21.07.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 350.0,
+        "date": "23.07.25",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 698.9,
+        "date": "28.07.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 145.6,
+        "date": "31.07.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 11378.75,
+        "date": "31.07.25",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      }
+    ]
+  },
+  "Aug 2025": {
+    "totals": {
+      "income": 11690.99,
+      "expenses": 11346.88,
+      "balance": 7312.7
+    },
+    "transactions": [
+      {
+        "type": "credit",
+        "amount": 622.0,
+        "date": "07.08.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 280.0,
+        "date": "15.08.25",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      }
+    ]
+  },
+  "Sep 2025": {
+    "totals": {
+      "income": 11690.99,
+      "expenses": 11346.88,
+      "balance": 7312.7
+    },
+    "transactions": [
+      {
+        "type": "credit",
+        "amount": 622.0,
+        "date": "07.08.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 280.0,
+        "date": "15.08.25",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      }
+    ]
+  },
+  "Oct 2025": {
+    "totals": {
+      "income": 31399.5,
+      "expenses": 27917.76,
+      "balance": 7656.81
+    },
+    "transactions": [
+      {
+        "type": "credit",
+        "amount": 11378.75,
+        "date": "01.09.25",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 308.5,
+        "date": "01.09.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 622.0,
+        "date": "05.09.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 74.4,
+        "date": "08.09.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 104.0,
+        "date": "12.09.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 420.0,
+        "date": "18.09.25",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 338.4,
+        "date": "22.09.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 11378.75,
+        "date": "30.09.25",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      }
+    ]
+  },
+  "Nov 2025": {
+    "totals": {
+      "income": 21447.45,
+      "expenses": 29140.08,
+      "balance": 11138.55
+    },
+    "transactions": [
+      {
+        "type": "credit",
+        "amount": 726.0,
+        "date": "07.10.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 74.4,
+        "date": "09.10.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 125.0,
+        "date": "09.10.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 313.2,
+        "date": "16.10.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 490.0,
+        "date": "17.10.25",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 11378.75,
+        "date": "31.10.25",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      }
+    ]
+  },
+  "Dec 2025": {
+    "totals": {
+      "income": 14016.53,
+      "expenses": 8972.2,
+      "balance": 3445.92
+    },
+    "transactions": [
+      {
+        "type": "credit",
+        "amount": 726.0,
+        "date": "07.11.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 125.0,
+        "date": "10.11.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 420.0,
+        "date": "19.11.25",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 202.5,
+        "date": "25.11.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 11378.75,
+        "date": "28.11.25",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      }
+    ]
+  },
+  "Jan 2026": {
+    "totals": {
+      "income": 17143.0,
+      "expenses": 23255.17,
+      "balance": 8490.25
+    },
+    "transactions": [
+      {
+        "type": "credit",
+        "amount": 726.0,
+        "date": "05.12.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 292.4,
+        "date": "09.12.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 280.0,
+        "date": "19.12.25",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 608.35,
+        "date": "22.12.25",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 254.3,
+        "date": "22.12.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 11378.75,
+        "date": "24.12.25",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 502.75,
+        "date": "29.12.25",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      }
+    ]
+  },
+  "Feb 2026": {
+    "totals": {
+      "income": 13890.68,
+      "expenses": 6027.91,
+      "balance": 2378.08
+    },
+    "transactions": [
+      {
+        "type": "credit",
+        "amount": 726.0,
+        "date": "07.01.26",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 185.6,
+        "date": "22.01.26",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 315.0,
+        "date": "29.01.26",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 11390.8,
+        "date": "30.01.26",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      }
+    ]
+  },
+  "Mar 2026": {
+    "totals": {
+      "income": 15746.97,
+      "expenses": 16078.65,
+      "balance": 9420.47
+    },
+    "transactions": [
+      {
+        "type": "credit",
+        "amount": 726.0,
+        "date": "06.03.26",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 390.2,
+        "date": "11.03.26",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 455.0,
+        "date": "19.03.26",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 170.42,
+        "date": "24.03.26",
+        "description": "EUR 189.00 AU COURS DE 0.9017",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 293.65,
+        "date": "30.03.26",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 220.9,
+        "date": "30.03.26",
+        "description": "EXP\u00c9DITEUR:",
+        "category": "Other"
+      },
+      {
+        "type": "credit",
+        "amount": 11390.8,
+        "date": "31.03.26",
+        "description": "DONNEUR D'ORDRE:",
+        "category": "Other"
+      }
+    ]
+  }
+}
