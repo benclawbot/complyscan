@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Habit Gamifier — Deluxe</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  :root {
+    --bg: #0b0b0e;
+    --surface: #131318;
+    --surface2: #1a1a22;
+    --border: #252530;
+    --accent: #7c6fff;
+    --accent2: #00e5c0;
+    --gold: #ffc940;
+    --danger: #ff5f5f;
+    --text: #e8e8f4;
+    --text-dim: #6a6a80;
+    --mood-1: #ff6b6b;
+    --mood-2: #ffa07a;
+    --mood-3: #ffd700;
+    --mood-4: #98fb98;
+    --mood-5: #00e5c0;
+    --radius: 14px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 20px;
+  }
+
+  .container { max-width: 740px; margin: 0 auto; }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+
+  .logo {
+    font-size: 1.4rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .streak-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+
+  .streak-badge .fire { font-size: 1.1rem; }
+  .streak-badge .mult { background: var(--accent); color: white; font-size: 0.65rem; padding: 2px 7px; border-radius: 999px; display: none; }
+  .streak-badge .mult.show { display: inline-block; }
+
+  /* Mood Ring */
+  .mood-widget {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .mood-ring {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: conic-gradient(var(--mood-3) 0deg, transparent 0deg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    position: relative;
+    transition: background 0.5s ease;
+  }
+
+  .mood-ring-inner {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+  }
+
+  .mood-ring-track {
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    background: conic-gradient(
+      var(--mood-1) 0deg, var(--mood-1) 72deg,
+      var(--mood-2) 72deg, var(--mood-2) 144deg,
+      var(--mood-3) 144deg, var(--mood-3) 216deg,
+      var(--mood-4) 216deg, var(--mood-4) 288deg,
+      var(--mood-5) 288deg, var(--mood-5) 360deg
+    );
+    opacity: 0.25;
+  }
+
+  .mood-ring-fill {
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    background: conic-gradient(var(--mood-5) var(--fill-angle, 0deg), transparent var(--fill-angle, 0deg));
+    opacity: 0.9;
+    transition: background 0.5s ease;
+  }
+
+  .mood-ring-fill { clip-path: inset(4px); }
+
+  .mood-info { flex: 1; }
+  .mood-label { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .mood-text { font-weight: 600; font-size: 0.95rem; margin-bottom: 2px; }
+  .mood-history { font-size: 0.72rem; color: var(--text-dim); }
+
+  .mood-selector { display: flex; gap: 6px; }
+  .mood-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    background: var(--surface2);
+    cursor: pointer;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+
+  .mood-btn:hover { transform: scale(1.2); }
+  .mood-btn.active { border-color: var(--text); transform: scale(1.15); }
+
+  /* Cards Grid */
+  .cards-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+  }
+
+  .card-label {
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 600;
+    margin-bottom: 14px;
+  }
+
+  /* Water Tracker */
+  .water-display { text-align: center; margin-bottom: 12px; }
+  .water-glasses { font-size: 1.8rem; font-weight: 700; color: var(--accent2); }
+  .water-goal { font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; }
+
+  .water-bar {
+    height: 8px;
+    background: var(--surface2);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 10px;
+  }
+
+  .water-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #00b4d8, var(--accent2));
+    border-radius: 999px;
+    transition: width 0.5s ease;
+  }
+
+  .water-drops { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
+  .water-drop {
+    width: 18px;
+    height: 22px;
+    border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.3s;
+    font-size: 0.65rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .water-drop.filled {
+    background: linear-gradient(180deg, #00b4d8, var(--accent2));
+    border-color: var(--accent2);
+  }
+
+  /* Energy Wave */
+  .energy-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 50px;
+    margin-bottom: 8px;
+  }
+
+  .energy-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; height: 100%; justify-content: flex-end; }
+  .energy-bar-fill {
+    width: 100%;
+    border-radius: 4px 4px 0 0;
+    background: var(--surface2);
+    transition: all 0.5s ease;
+    min-height: 4px;
+  }
+
+  .energy-time { font-size: 0.58rem; color: var(--text-dim); }
+
+  .energy-labels { display: flex; justify-content: space-between; margin-bottom: 10px; }
+  .energy-labels span { font-size: 0.7rem; color: var(--text-dim); }
+
+  .energy-selector { display: flex; gap: 6px; }
+  .energy-btn {
+    flex: 1;
+    padding: 5px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text-dim);
+    font-size: 0.7rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .energy-btn:hover { border-color: var(--accent); }
+  .energy-btn.active { border-color: var(--accent); background: rgba(124,111,255,0.15); color: var(--accent); font-weight: 600; }
+  .energy-btn .level { font-size: 1rem; }
+
+  /* Level Card */
+  .level-card {
+    background: linear-gradient(135deg, var(--surface), var(--surface2));
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 14px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .level-card::after {
+    content: '';
+    position: absolute;
+    bottom: -60px;
+    right: -30px;
+    width: 180px;
+    height: 180px;
+    background: radial-gradient(circle, rgba(124,111,255,0.12), transparent 70%);
+    pointer-events: none;
+  }
+
+  .level-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .level-title { font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; }
+  .level-num { font-size: 2.2rem; font-weight: 800; color: var(--gold); }
+  .level-mult { background: var(--accent); color: white; font-size: 0.65rem; padding: 3px 8px; border-radius: 999px; display: none; }
+  .level-mult.show { display: inline-block; }
+
+  .points-row { font-size: 0.8rem; color: var(--text-dim); margin-bottom: 8px; }
+  .points-row span { color: var(--accent2); font-weight: 600; }
+
+  .progress-bar { height: 7px; background: var(--border); border-radius: 999px; overflow: hidden; }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 999px;
+    transition: width 0.6s ease;
+  }
+
+  .progress-label { font-size: 0.7rem; color: var(--text-dim); margin-top: 5px; text-align: right; }
+
+  /* Stats Row */
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+  .stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 8px; text-align: center; }
+  .stat-val { font-size: 1.4rem; font-weight: 700; color: var(--accent2); }
+  .stat-lbl { font-size: 0.62rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
+
+  /* Habits */
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .section-title { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
+  .add-btn { background: none; border: 1px solid var(--border); color: var(--text-dim); font-size: 0.72rem; padding: 5px 12px; border-radius: 8px; cursor: pointer; transition: all 0.2s; font-family: inherit; }
+  .add-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .habit-list { display: flex; flex-direction: column; gap: 7px; }
+
+  .habit-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+  }
+
+  .habit-item:hover { border-color: var(--accent); }
+  .habit-item.done { border-color: rgba(0,229,192,0.4); background: rgba(0,229,192,0.04); }
+  .habit-item.done .habit-name { text-decoration: line-through; color: var(--text-dim); }
+
+  .habit-check {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    flex-shrink: 0;
+    transition: all 0.2s;
+    color: transparent;
+  }
+
+  .habit-item.done .habit-check { background: var(--accent2); border-color: var(--accent2); color: var(--bg); }
+  .habit-info { flex: 1; min-width: 0; }
+  .habit-name { font-weight: 500; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .habit-meta { display: flex; gap: 10px; margin-top: 3px; font-size: 0.68rem; color: var(--text-dim); }
+  .habit-streak { color: var(--gold); }
+  .habit-pts { color: var(--accent); font-weight: 600; }
+
+  .habit-ops { display: flex; gap: 4px; opacity: 0; transition: opacity 0.2s; }
+  .habit-item:hover .habit-ops { opacity: 1; }
+  .habit-op { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 0.8rem; padding: 3px; border-radius: 4px; transition: color 0.2s; font-family: inherit; }
+  .habit-op:hover { color: var(--text); }
+  .habit-op.del:hover { color: var(--danger); }
+
+  /* Weekly Grid */
+  .week-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-top: 14px; }
+  .week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 10px; }
+  .day-lbl { font-size: 0.6rem; color: var(--text-dim); text-align: center; text-transform: uppercase; letter-spacing: 0.05em; padding-bottom: 4px; }
+  .day-cell {
+    aspect-ratio: 1;
+    border-radius: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    position: relative;
+  }
+
+  .day-cell.done { background: rgba(0,229,192,0.18); border-color: var(--accent2); color: var(--accent2); }
+  .day-cell.today { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(124,111,255,0.25); }
+
+  /* Bonus */
+  .bonus-banner {
+    background: linear-gradient(135deg, rgba(124,111,255,0.15), rgba(0,229,192,0.1));
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-top: 14px;
+    text-align: center;
+    display: none;
+  }
+  .bonus-banner.show { display: block; }
+  .bonus-banner .b-emoji { font-size: 1.4rem; }
+  .bonus-banner .b-text { font-size: 0.8rem; color: var(--text-dim); }
+  .bonus-banner .b-pts { color: var(--gold); font-weight: 700; font-size: 1rem; }
+
+  /* Modal */
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; z-index: 200; display: none; }
+  .modal-bg.show { display: flex; }
+  .modal { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; width: 90%; max-width: 340px; }
+  .modal h3 { font-size: 1rem; margin-bottom: 14px; }
+  .modal input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; color: var(--text); font-family: inherit; font-size: 0.9rem; outline: none; margin-bottom: 12px; }
+  .modal input:focus { border-color: var(--accent); }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .modal-btn { padding: 8px 16px; border-radius: 8px; font-family: inherit; font-size: 0.85rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.2s; }
+  .modal-btn.secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text-dim); }
+  .modal-btn.primary { background: var(--accent); color: white; }
+  .modal-btn.delete { background: rgba(255,95,95,0.15); color: var(--danger); border: 1px solid var(--danger); }
+
+  /* Pro tip */
+  .pro-tip { background: var(--surface); border-left: 3px solid var(--accent); border-radius: 0 var(--radius) var(--radius) 0; padding: 12px 16px; margin-top: 20px; font-size: 0.78rem; color: var(--text-dim); line-height: 1.55; }
+  .pro-tip strong { color: var(--text); }
+
+  /* Collapsible sections */
+  .collapsible { cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 10px 0; }
+  .collapsible .chevron { font-size: 0.8rem; transition: transform 0.2s; color: var(--text-dim); }
+  .collapsible.open .chevron { transform: rotate(180deg); }
+  .collapsible-content { display: none; }
+  .collapsible-content.open { display: block; }
+
+  @keyframes pop { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+  .pop { animation: pop 0.25s ease; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="logo">Habit Gamifier</div>
+    <div class="streak-badge">
+      <span class="fire">🔥</span>
+      <span id="streakNum">0</span>d streak
+      <span class="mult" id="multBadge">1.5x</span>
+    </div>
+  </header>
+
+  <!-- Mood Ring -->
+  <div class="mood-widget">
+    <div style="position:relative; flex-shrink:0;">
+      <div class="mood-ring-track"></div>
+      <div class="mood-ring-fill" id="moodRingFill"></div>
+      <div class="mood-ring-inner" id="moodEmoji">😊</div>
+    </div>
+    <div class="mood-info">
+      <div class="mood-label">Mood today</div>
+      <div class="mood-text" id="moodText">Feeling good</div>
+      <div class="mood-history" id="moodHistory">No entries yet</div>
+    </div>
+    <div class="mood-selector" id="moodSelector">
+      <button class="mood-btn" data-mood="1" title="Rough">😔</button>
+      <button class="mood-btn" data-mood="2" title="Okay">😐</button>
+      <button class="mood-btn" data-mood="3" title="Good">🙂</button>
+      <button class="mood-btn" data-mood="4" title="Great">😊</button>
+      <button class="mood-btn" data-mood="5" title="Amazing">🤩</button>
+    </div>
+  </div>
+
+  <!-- Water + Energy Row -->
+  <div class="cards-row">
+
+    <!-- Water -->
+    <div class="card">
+      <div class="card-label">💧 Water Intake</div>
+      <div class="water-display">
+        <div class="water-glasses"><span id="waterCount">0</span> / <span id="waterGoal">8</span></div>
+        <div class="water-goal">glasses today</div>
+      </div>
+      <div class="water-bar"><div class="water-fill" id="waterFill" style="width:0%"></div></div>
+      <div class="water-drops" id="waterDrops"></div>
+    </div>
+
+    <!-- Energy -->
+    <div class="card">
+      <div class="card-label">⚡ Energy</div>
+      <div class="energy-labels"><span>Morning</span><span>Afternoon</span><span>Evening</span></div>
+      <div class="energy-bars" id="energyBars"></div>
+      <div class="energy-selector" id="energySelector">
+        <button class="energy-btn" data-time="morning" data-level="1">😴<span class="level">1</span></button>
+        <button class="energy-btn" data-time="morning" data-level="2">😐<span class="level">2</span></button>
+        <button class="energy-btn" data-time="morning" data-level="3">🙂<span class="level">3</span></button>
+        <button class="energy-btn" data-time="morning" data-level="4">😊<span class="level">4</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Level Card -->
+  <div class="level-card">
+    <div class="level-row">
+      <div>
+        <div class="level-title">Level</div>
+        <div class="level-num" id="levelNum">1</div>
+      </div>
+      <div class="level-mult" id="levelMult">STREAK MULTIPLIER</div>
+    </div>
+    <div class="points-row"><span id="totalPts">0</span> total points</div>
+    <div class="progress-bar"><div class="progress-fill" id="levelFill" style="width:0%"></div></div>
+    <div class="progress-label" id="levelLabel">0 / 500 to Level 2</div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-box"><div class="stat-val" id="statToday">0</div><div class="stat-lbl">Today</div></div>
+    <div class="stat-box"><div class="stat-val" id="statDone">0/8</div><div class="stat-lbl">Habits</div></div>
+    <div class="stat-box"><div class="stat-val" id="statStreak">0</div><div class="stat-lbl">Best</div></div>
+    <div class="stat-box"><div class="stat-val" id="statMood">—</div><div class="stat-lbl">Mood</div></div>
+  </div>
+
+  <!-- Habits -->
+  <div class="section-header">
+    <div class="section-title">Today's Habits</div>
+    <button class="add-btn" onclick="openAdd()">+ Add</button>
+  </div>
+  <div class="habit-list" id="habitList"></div>
+
+  <!-- Weekly -->
+  <div class="week-card">
+    <div class="section-title">This Week</div>
+    <div class="week-grid" id="weekGrid"></div>
+  </div>
+
+  <!-- Bonus -->
+  <div class="bonus-banner" id="bonusBanner">
+    <div class="b-emoji">🏆</div>
+    <div class="b-text">All habits done!</div>
+    <div class="b-pts" id="bonusPts">+50 bonus points</div>
+  </div>
+
+  <div class="pro-tip">
+    <strong>💡 Pro tip:</strong> Habits not cutting it? Add custom habits like "No alcohol", "Cold shower", "Learn 30 min", or "Under 1500 calories". The scoring is fully customisable — rename, reweight, or delete anything.
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <h3 id="modalTitle">Add Habit</h3>
+    <input type="text" id="modalInput" placeholder="Habit name...">
+    <div class="modal-actions">
+      <button class="modal-btn secondary" onclick="closeModal()">Cancel</button>
+      <button class="modal-btn delete" id="modalDelete" style="display:none" onclick="deleteHabit()">Delete</button>
+      <button class="modal-btn primary" onclick="saveHabit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const LEVELS = [0, 500, 1500, 3000, 5000];
+const MOODS = ['', '😔 Rough', '😐 Okay', '🙂 Good', '😊 Great', '🤩 Amazing'];
+const MOOD_COLORS = ['', 'var(--mood-1)', 'var(--mood-2)', 'var(--mood-3)', 'var(--mood-4)', 'var(--mood-5)'];
+const WATER_GOAL_DEFAULT = 8;
+const DEFAULT_HABITS = [
+  { name: 'Exercise', pts: 10 },
+  { name: 'Reading', pts: 10 },
+  { name: 'Deep Work', pts: 10 },
+  { name: 'Meditation', pts: 10 },
+  { name: 'Journaling', pts: 10 },
+  { name: 'No Social Media AM', pts: 10 },
+  { name: '8 Hours Sleep', pts: 10 },
+  { name: 'Healthy Eating', pts: 10 },
+];
+
+let state, editingHabit = null;
+
+function load() {
+  const s = localStorage.getItem('habitGamifier2');
+  if (s) return JSON.parse(s);
+  return {
+    habits: DEFAULT_HABITS.map(n => ({ name: n.name, pts: n.pts, done: false, streak: 0 })),
+    points: 0,
+    water: 0,
+    waterGoal: WATER_GOAL_DEFAULT,
+    mood: null,
+    moodLog: [],
+    energy: { morning: 0, afternoon: 0, evening: 0 },
+    weekly: {},
+    bestStreak: 0,
+    dailyPoints: {}
+  };
+}
+
+function save() { localStorage.setItem('habitGamifier2', JSON.stringify(state)); }
+
+function today() { return new Date().toISOString().split('T')[0]; }
+function dayOfWeek() { return new Date().getDay(); }
+
+function getStreak() {
+  let s = 0, d = new Date();
+  for (let i = 0; i < 365; i++) {
+    const key = new Date(d).toISOString().split('T')[0];
+    if (state.weekly[key]) { s++; d.setDate(d.getDate() - 1); }
+    else if (i > 0) break;
+    else d.setDate(d.getDate() - 1);
+  }
+  return s;
+}
+
+function getMult() {
+  const s = getStreak();
+  if (s >= 30) return 2;
+  if (s >= 7) return 1.5;
+  return 1;
+}
+
+function getLevel(pts) {
+  for (let i = LEVELS.length - 1; i >= 0; i--) if (pts >= LEVELS[i]) return i + 1;
+  return 1;
+}
+
+// --- Mood ---
+function setMood(level) {
+  state.mood = level;
+  state.moodLog.push({ date: today(), level });
+  if (state.moodLog.length > 30) state.moodLog.shift();
+  document.querySelectorAll('.mood-btn').forEach(b => b.classList.toggle('active', +b.dataset.mood === level));
+  const angle = ((level - 1) / 4) * 360;
+  document.getElementById('moodRingFill').style.background = `conic-gradient(${MOOD_COLORS[level]} ${angle}deg, transparent ${angle}deg)`;
+  document.getElementById('moodEmoji').textContent = MOODS[level].split(' ')[0];
+  document.getElementById('moodText').textContent = MOODS[level].split(' ')[1];
+  const count = state.moodLog.filter(m => m.level >= 4).length;
+  document.getElementById('moodHistory').textContent = `${count} great days logged`;
+  document.getElementById('statMood').textContent = MOODS[level].split(' ')[0];
+  save();
+}
+
+// --- Water ---
+function initWater() {
+  const drops = document.getElementById('waterDrops');
+  drops.innerHTML = '';
+  for (let i = 0; i < state.waterGoal; i++) {
+    const d = document.createElement('div');
+    d.className = 'water-drop' + (i < state.water ? ' filled' : '');
+    d.textContent = i < state.water ? '💧' : '';
+    d.onclick = () => toggleWater(i);
+    drops.appendChild(d);
+  }
+  const pct = Math.min((state.water / state.waterGoal) * 100, 100);
+  document.getElementById('waterFill').style.width = pct + '%';
+  document.getElementById('waterCount').textContent = state.water;
+  document.getElementById('waterGoal').textContent = state.waterGoal;
+}
+
+function toggleWater(i) {
+  if (state.water === i + 1) state.water = i;
+  else state.water = i + 1;
+  initWater();
+  save();
+}
+
+// --- Energy ---
+function initEnergy() {
+  const bars = document.getElementById('energyBars');
+  bars.innerHTML = '';
+  const times = ['morning', 'afternoon', 'evening'];
+  const heights = [30, 60, 90];
+  times.forEach((t, i) => {
+    const col = document.createElement('div');
+    col.className = 'energy-bar-col';
+    const fill = document.createElement('div');
+    const h = state.energy[t] || 0;
+    fill.className = 'energy-bar-fill';
+    fill.style.height = (h / 4 * 50) + 'px';
+    fill.style.background = h === 0 ? 'var(--surface2)' : `hsl(${150 + h * 30}, 80%, ${40 + h * 10}%)`;
+    const time = document.createElement('div');
+    time.className = 'energy-time';
+    time.textContent = ['AM', 'PM', 'EVE'][i];
+    col.appendChild(fill);
+    col.appendChild(time);
+    bars.appendChild(col);
+  });
+
+  // Highlight active selector
+  document.querySelectorAll('.energy-btn').forEach(b => {
+    const active = b.dataset.time === 'morning' && state.energy.morning > 0;
+    b.classList.toggle('active', active && +b.dataset.level === state.energy.morning);
+  });
+}
+
+document.getElementById('energySelector').onclick = e => {
+  const btn = e.target.closest('.energy-btn');
+  if (!btn) return;
+  const level = +btn.dataset.level;
+  const wasActive = state.energy.morning === level;
+  state.energy.morning = wasActive ? 0 : level;
+  initEnergy();
+  save();
+};
+
+// --- Habits ---
+function toggleHabit(i) {
+  const wasAll = state.habits.every(h => h.done);
+  state.habits[i].done = !state.habits[i].done;
+  const nowAll = state.habits.every(h => h.done);
+  const mult = getMult();
+  const tk = today();
+
+  // Update streaks
+  state.habits.forEach((h, idx) => {
+    if (h.done) { h.streak++; state.bestStreak = Math.max(state.bestStreak, h.streak); }
+    else h.streak = 0;
+  });
+
+  if (nowAll && !wasAll) {
+    const bonus = Math.round(50 * mult);
+    state.points += bonus;
+    state.weekly[tk] = true;
+    document.getElementById('bonusBanner').classList.add('show');
+    document.getElementById('bonusPts').textContent = `+${bonus} bonus points`;
+  } else if (!nowAll && wasAll) {
+    state.weekly[tk] = false;
+    document.getElementById('bonusBanner').classList.remove('show');
+  }
+
+  const doneCount = state.habits.filter(h => h.done).length;
+  const earned = state.habits[i].done ? state.habits[i].pts : 0;
+  if (!state.dailyPoints) state.dailyPoints = {};
+  state.dailyPoints[tk] = (state.dailyPoints[tk] || 0) + earned;
+  state.points += earned;
+  save();
+  render();
+}
+
+function renderHabits() {
+  const el = document.getElementById('habitList');
+  el.innerHTML = state.habits.map((h, i) => `
+    <div class="habit-item${h.done ? ' done' : ''}" onclick="toggleHabit(${i})">
+      <div class="habit-check">${h.done ? '✓' : ''}</div>
+      <div class="habit-info">
+        <div class="habit-name">${h.name}</div>
+        <div class="habit-meta">
+          <span class="habit-streak">🔥 ${h.streak}</span>
+          <span class="habit-pts">+${h.pts}pts</span>
+        </div>
+      </div>
+      <div class="habit-ops">
+        <button class="habit-op" onclick="event.stopPropagation(); openEdit(${i})">✏️</button>
+        <button class="habit-op del" onclick="event.stopPropagation(); deleteHabit(${i})">🗑️</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// --- Week ---
+function renderWeek() {
+  const grid = document.getElementById('weekGrid');
+  const labels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const todayDow = dayOfWeek();
+  grid.innerHTML = labels.map((l, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - todayDow + i);
+    const key = d.toISOString().split('T')[0];
+    const done = !!state.weekly[key];
+    const istoday = i === todayDow;
+    return `<div class="day-lbl">${l}</div>`;
+  }).join('');
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - todayDow + i);
+    const key = d.toISOString().split('T')[0];
+    const done = !!state.weekly[key];
+    const istoday = i === todayDow;
+    const cell = document.createElement('div');
+    cell.className = 'day-cell' + (done ? ' done' : '') + (istoday ? ' today' : '');
+    cell.textContent = done ? '✓' : '';
+    grid.appendChild(cell);
+  }
+}
+
+// --- Modal ---
+function openAdd() {
+  editingHabit = null;
+  document.getElementById('modalTitle').textContent = 'Add Habit';
+  document.getElementById('modalInput').value = '';
+  document.getElementById('modalInput').placeholder = 'Habit name...';
+  document.getElementById('modalDelete').style.display = 'none';
+  document.getElementById('modal').classList.add('show');
+  document.getElementById('modalInput').focus();
+}
+
+function openEdit(i) {
+  editingHabit = i;
+  document.getElementById('modalTitle').textContent = 'Edit Habit';
+  document.getElementById('modalInput').value = state.habits[i].name;
+  document.getElementById('modalDelete').style.display = 'inline-block';
+  document.getElementById('modalDelete').onclick = () => deleteHabit(i);
+  document.getElementById('modal').classList.add('show');
+  document.getElementById('modalInput').focus();
+}
+
+function deleteHabit(i) {
+  state.habits.splice(i, 1);
+  save();
+  closeModal();
+  render();
+}
+
+function closeModal() { document.getElementById('modal').classList.remove('show'); }
+
+function saveHabit() {
+  const name = document.getElementById('modalInput').value.trim();
+  if (!name) return;
+  if (editingHabit !== null) {
+    state.habits[editingHabit].name = name;
+  } else {
+    state.habits.push({ name, pts: 10, done: false, streak: 0 });
+  }
+  save();
+  closeModal();
+  render();
+}
+
+document.getElementById('modalInput').onkeydown = e => {
+  if (e.key === 'Enter') saveHabit();
+  if (e.key === 'Escape') closeModal();
+};
+
+document.getElementById('modal').onclick = e => {
+  if (e.target.id === 'modal') closeModal();
+};
+
+// --- Mood btns ---
+document.getElementById('moodSelector').onclick = e => {
+  const btn = e.target.closest('.mood-btn');
+  if (btn) setMood(+btn.dataset.mood);
+};
+
+// --- Render All ---
+function render() {
+  const mult = getMult();
+  const streak = getStreak();
+  const tk = today();
+  const pts = state.points || 0;
+  const level = getLevel(pts);
+  const doneCount = state.habits.filter(h => h.done).length;
+
+  document.getElementById('streakNum').textContent = streak;
+  document.getElementById('multBadge').textContent = mult + 'x';
+  document.getElementById('multBadge').classList.toggle('show', mult > 1);
+  document.getElementById('levelMult').classList.toggle('show', mult > 1);
+
+  document.getElementById('levelNum').textContent = level;
+  document.getElementById('totalPts').textContent = pts.toLocaleString();
+  const nextLvl = LEVELS[level] || LEVELS[LEVELS.length - 1];
+  const prevLvl = LEVELS[level - 1] || 0;
+  const pct = level >= LEVELS.length ? 100 : Math.min(((pts - prevLvl) / (nextLvl - prevLvl)) * 100, 100);
+  document.getElementById('levelFill').style.width = pct + '%';
+  document.getElementById('levelLabel').textContent = level >= LEVELS.length
+    ? '🏆 Max level!'
+    : `${pts.toLocaleString()} / ${nextLvl.toLocaleString()} to Level ${level + 1}`;
+
+  document.getElementById('statToday').textContent = state.dailyPoints?.[tk] || 0;
+  document.getElementById('statDone').textContent = `${doneCount}/${state.habits.length}`;
+  document.getElementById('statStreak').textContent = state.bestStreak;
+
+  // Mood ring
+  if (state.mood) {
+    const angle = ((state.mood - 1) / 4) * 360;
+    document.getElementById('moodRingFill').style.background = `conic-gradient(${MOOD_COLORS[state.mood]} ${angle}deg, transparent ${angle}deg)`;
+    document.getElementById('moodEmoji').textContent = MOODS[state.mood].split(' ')[0];
+    document.getElementById('moodText').textContent = MOODS[state.mood].split(' ')[1];
+    const greatCount = state.moodLog.filter(m => m.level >= 4).length;
+    document.getElementById('moodHistory').textContent = `${greatCount} great days logged`;
+    document.getElementById('statMood').textContent = MOODS[state.mood].split(' ')[0];
+    document.querySelectorAll('.mood-btn').forEach(b => b.classList.toggle('active', +b.dataset.mood === state.mood));
+  }
+
+  renderHabits();
+  renderWeek();
+
+  // Reset bonus if all unchecked
+  if (!state.habits.some(h => h.done)) {
+    document.getElementById('bonusBanner').classList.remove('show');
+  }
+}
+
+// Midnight reset
+function scheduleReset() {
+  const now = new Date(), midnight = new Date();
+  midnight.setDate(now.getDate() + 1); midnight.setHours(0, 0, 0, 0);
+  setTimeout(() => {
+    state.habits.forEach(h => h.done = false);
+    state.mood = null;
+    state.energy = { morning: 0, afternoon: 0, evening: 0 };
+    document.getElementById('bonusBanner').classList.remove('show');
+    save(); render(); initWater(); initEnergy();
+    scheduleReset();
+  }, midnight - now);
+}
+
+// Init
+state = load();
+initWater();
+initEnergy();
+render();
+scheduleReset();
+</script>
+</body>
+</html>
