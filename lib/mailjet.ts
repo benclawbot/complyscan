@@ -132,3 +132,29 @@ export async function sendUpgradeEmail(email: string): Promise<void> {
     }),
   });
 }
+
+export async function sendReportEmail({
+  email,
+  subject,
+  html,
+  name,
+}: {
+  email: string;
+  subject: string;
+  html: string;
+  name?: string;
+}): Promise<void> {
+  await mj('/send', {
+    method: 'POST',
+    body: JSON.stringify({
+      Messages: [
+        {
+          From: { Email: 'hello@complyscan.ch', Name: 'ComplyScan' },
+          To: [{ Email: email, Name: name || undefined }],
+          Subject: subject,
+          HTMLPart: html,
+        },
+      ],
+    }),
+  });
+}

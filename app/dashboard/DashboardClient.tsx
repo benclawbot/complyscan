@@ -12,6 +12,7 @@ interface Client {
   name: string;
   url: string;
   created_at: string;
+  lastScanId?: string | null;
   lastScanDate: string | null;
   lastScanStatus: string | null;
   complianceStatus: string;
@@ -438,9 +439,9 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-2">
-                              {client.lastScanStatus === "completed" && (
+                              {client.lastScanStatus === "completed" && client.lastScanId && (
                                 <a
-                                  href={`/report/${client.id}`}
+                                  href={`/report/${client.lastScanId}?token=${encodeURIComponent(sessionToken)}`}
                                   className="text-xs bg-accent-blue/20 text-accent-blue px-3 py-1.5 rounded-lg hover:bg-accent-blue/30 transition-all"
                                 >
                                   View Report
@@ -501,7 +502,7 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
                           </div>
                           {scan.status === "completed" && (
                             <a
-                              href={`/report/${scan.id}?agency=true`}
+                              href={`/report/${scan.id}?token=${encodeURIComponent(sessionToken)}&agency=true`}
                               className="text-sm bg-accent-blue/20 text-accent-blue px-4 py-2 rounded-lg hover:bg-accent-blue/30 transition-all"
                             >
                               View Report
@@ -544,7 +545,7 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
                     </div>
                     {scan.status === "completed" && (
                       <a
-                        href={`/report/${scan.id}?agency=true`}
+                        href={`/report/${scan.id}?token=${encodeURIComponent(sessionToken)}&agency=true`}
                         className="text-sm bg-accent-blue/20 text-accent-blue px-4 py-2 rounded-lg hover:bg-accent-blue/30 transition-all"
                       >
                         View Report
@@ -679,7 +680,7 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
                 </div>
                 {scan.status === "completed" && (
                   <a
-                    href={`/report/${scan.id}`}
+                    href={`/report/${scan.id}?token=${encodeURIComponent(sessionToken)}`}
                     className="text-sm bg-accent-blue/20 text-accent-blue px-4 py-2 rounded-lg hover:bg-accent-blue/30 transition-all"
                   >
                     View Report

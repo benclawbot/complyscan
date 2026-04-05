@@ -1,119 +1,65 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 export default function SuccessClient() {
   const searchParams = useSearchParams();
-  const sessionId = searchParams.get("session_id");
-  const scanId = searchParams.get("scan_id");
-  const plan = searchParams.get("plan");
-  const url = searchParams.get("url");
-  const email = searchParams.get("email");
+  const sessionId = searchParams.get('session_id');
+  const scanId = searchParams.get('scan_id');
+  const plan = searchParams.get('plan');
+  const url = searchParams.get('url');
+  const email = searchParams.get('email');
 
   const [subscriberToken, setSubscriberToken] = useState<string | null>(null);
-  const [customerEmail, setCustomerEmail] = useState<string | null>(null);
-  const [reportStatus, setReportStatus] = useState<"loading" | "error">("loading");
-  const [reportError, setReportError] = useState<string>("");
+  const [customerEmail, setCustomerEmail] = useState<string | null>(email);
+  const [reportStatus, setReportStatus] = useState<'loading' | 'error'>('loading');
+  const [reportError, setReportError] = useState('');
 
-  // Subscriptions → dashboard
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId || plan !== 'monthly') return;
+
     fetch(`/api/stripe/session?session_id=${encodeURIComponent(sessionId)}`)
-      .then((res) => {
-        if (!res.ok) return { subscriberToken: null, customerEmail: null } as any;
-        return res.json() as Promise<{ subscriberToken?: string; customerEmail?: string }>;
+      .then(async (res) => {
+        if (!res.ok) return { subscriberToken: null, customerEmail: null };
+        return await res.json() as { subscriberToken?: string; customerEmail?: string };
       })
-      .then(async (data) => {
-        if (data?.subscriberToken) setSubscriberToken(data.subscriberToken);
+      .then((data) => {
+        if (data?.subscriberToken) {
+          setSubscriberToken(data.subscriberToken);
+          document.cookie = `session_token=${encodeURIComponent(data.subscriberToken)}; path=/; SameSite=Lax`;
+        }
         if (data?.customerEmail) setCustomerEmail(data.customerEmail);
       })
       .catch(() => {});
-  }, [sessionId]);
+  }, [sessionId, plan]);
 
-  // PDF purchase: scan already exists → redirect to report
   useEffect(() => {
-    if (!scanId || plan !== "pdf") return;
-    if (sessionId) {
-      // Verify the scan is completed, then redirect
-      fetch(`/api/scan/trigger`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scanId, url: url || "", email: email || "" }),
-      })
-        .then(r => r.json() as Promise<{ status?: string; result?: any; error?: string }>)
-        .then(async (data) => {
-          if (data.status === "completed" || data.result) {
-            // Store in sessionStorage for cold-start resilience
-            try { sessionStorage.setItem(`scan:${scanId}`, JSON.stringify(data.result)); } catch {}
-            window.location.href = `/report/${encodeURIComponent(scanId)}?session_id=${encodeURIComponent(sessionId || '')}`;
-          } else {
-            setReportError("Scan not found. Please contact support.");
-            setReportStatus("error");
-          }
-        })
-        .catch(() => {
-          // On error, try redirecting anyway — the report page will show current state
-          window.location.href = `/report/${encodeURIComponent(scanId)}?session_id=${encodeURIComponent(sessionId || '')}`;
-        });
-    } else {
-      window.location.href = `/report/${encodeURIComponent(scanId)}`;
-    }
-  }, [scanId, plan, sessionId, url, email]);
+    if (!scanId || plan !== 'pdf') return;
 
-  // Single-scan (legacy): run scan synchronously and redirect to report.
-  useEffect(() => {
-    if (!sessionId || !scanId || plan === "monthly" || plan === "pdf") return;
-    if (!url) {
-      setReportError("Missing scan URL. Please contact support.");
-      setReportStatus("error");
-      return;
-    }
-
-    let cancelled = false;
-
-    fetch("/api/scan/trigger", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scanId, url, email }),
+    fetch('/api/scan/trigger', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scanId, url: url || '', email: email || '', sessionId: sessionId || '' }),
     })
       .then(async (r) => {
-        if (cancelled) return;
-        if (!r.ok) {
-          const err = await r.json().catch(() => ({})) as { error?: string };
-          setReportError(err.error || "Scan failed. Please try again.");
-          setReportStatus("error");
-          return;
-        }
+        if (!r.ok) throw new Error('Scan trigger failed');
         const data = await r.json() as { status?: string; result?: any };
-        if (data.status === "completed" || data.result) {
-          if (data.result) {
-            try {
-              sessionStorage.setItem(`scan:${scanId}`, JSON.stringify(data.result));
-            } catch {}
-          }
-          window.location.href = `/report/${encodeURIComponent(scanId)}`;
-        } else {
-          setReportError("Scan did not return a result.");
-          setReportStatus("error");
+        if (data.result) {
+          try {
+            sessionStorage.setItem(`scan:${scanId}`, JSON.stringify(data.result));
+          } catch {}
         }
+        window.location.href = `/report/${encodeURIComponent(scanId)}?session_id=${encodeURIComponent(sessionId || '')}`;
       })
       .catch(() => {
-        if (cancelled) return;
-        setReportError("Network error. Please check your connection and try again.");
-        setReportStatus("error");
+        setReportError('Scan could not be started. Please contact support.');
+        setReportStatus('error');
       });
+  }, [scanId, plan, sessionId, url, email]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [sessionId, scanId, plan, url, email]);
-
-  // Subscription flow
-  if (plan === "monthly") {
-    const dashboardUrl = subscriberToken
-      ? `/dashboard?token=${encodeURIComponent(subscriberToken)}`
-      : "/dashboard";
+  if (plan === 'monthly') {
+    const dashboardUrl = subscriberToken ? `/dashboard?token=${encodeURIComponent(subscriberToken)}` : '/dashboard';
     return (
       <div className="min-h-screen bg-midnight flex items-center justify-center px-4">
         <div className="max-w-md w-full text-center">
@@ -123,41 +69,30 @@ export default function SuccessClient() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-white mb-2">Subscription Active!</h1>
-          <p className="text-white/60 mb-2">Your monthly subscription is confirmed.</p>
-          {customerEmail && (
-            <p className="text-white/40 text-sm mb-6">{customerEmail}</p>
-          )}
+          <p className="text-white/60 mb-2">Your agency subscription is confirmed.</p>
+          {customerEmail && <p className="text-white/40 text-sm mb-6">{customerEmail}</p>}
           {subscriberToken ? (
             <>
               <p className="text-white/60 text-sm mb-4">Save your dashboard access token:</p>
               <div className="bg-white/5 border border-white/10 rounded-lg p-3 mb-6 text-left">
                 <code className="text-accent-blue text-xs break-all">{subscriberToken}</code>
               </div>
-              <a
-                href={dashboardUrl}
-                className="inline-block px-6 py-3 bg-accent-blue text-white rounded-lg font-medium hover:bg-accent-blue/90 transition-all"
-              >
+              <a href={dashboardUrl} className="inline-block px-6 py-3 bg-accent-blue text-white rounded-lg font-medium hover:bg-accent-blue/90 transition-all">
                 Go to Dashboard
               </a>
             </>
           ) : (
-            <a
-              href="/dashboard"
-              className="inline-block px-6 py-3 bg-accent-blue text-white rounded-lg font-medium hover:bg-accent-blue/90 transition-all"
-            >
-              Access Dashboard
-            </a>
+            <p className="text-white/40 text-sm mb-6">Preparing your dashboard access…</p>
           )}
         </div>
       </div>
     );
   }
 
-  // Loading / error state
   return (
     <div className="min-h-screen bg-midnight flex items-center justify-center px-4">
       <div className="max-w-md w-full text-center">
-        {reportStatus === "error" ? (
+        {reportStatus === 'error' ? (
           <>
             <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
               <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -166,30 +101,20 @@ export default function SuccessClient() {
             </div>
             <h1 className="text-2xl font-bold text-white mb-2">Scan Failed</h1>
             <p className="text-white/60 mb-2">Something went wrong during the scan.</p>
-            {reportError && (
-              <p className="text-red-400 text-sm mb-8 max-w-sm mx-auto px-4">{reportError}</p>
-            )}
-            {!reportError && (
-              <a href="/" className="inline-block px-6 py-3 bg-accent-blue text-white rounded-lg font-medium hover:bg-accent-blue/90 transition-all">
-                Try Again
-              </a>
-            )}
+            {reportError && <p className="text-red-400 text-sm mb-8 max-w-sm mx-auto px-4">{reportError}</p>}
+            <a href="/" className="inline-block px-6 py-3 bg-accent-blue text-white rounded-lg font-medium hover:bg-accent-blue/90 transition-all">Try Again</a>
           </>
         ) : (
           <>
             <div className="relative w-16 h-16 mx-auto mb-6">
-              {/* Spinning ring */}
               <div className="absolute inset-0 rounded-full border-4 border-white/10" />
               <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-accent-blue animate-spin" style={{ animationDuration: '1s' }} />
-              {/* Inner dot */}
               <div className="absolute inset-3 rounded-full bg-accent-blue/30" />
             </div>
             <h1 className="text-2xl font-bold text-white mb-2">Payment Confirmed!</h1>
             <p className="text-white/60 mb-2">Running your GDPR compliance scan…</p>
             <p className="text-white/40 text-sm">This takes about 30 seconds. Please don't close this page.</p>
-            {scanId && (
-              <p className="text-white/30 text-xs mt-4">Scan ID: {scanId.substring(0, 8)}…</p>
-            )}
+            {scanId && <p className="text-white/30 text-xs mt-4">Scan ID: {scanId.substring(0, 8)}…</p>}
           </>
         )}
       </div>

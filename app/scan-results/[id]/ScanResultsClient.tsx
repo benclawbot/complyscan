@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CheckCircle, XCircle, AlertTriangle, FileText, RefreshCw, Lock } from "lucide-react";
 
@@ -50,9 +50,7 @@ function IssueList({ issues, severity, isLimited }: { issues: any[]; severity: "
         <Icon className={`w-4 h-4 ${iconColors[severity]}`} />
         <span className="font-semibold text-white capitalize">{severity} Issues</span>
         <span className="text-white/30 text-xs">({issues.length})</span>
-        {isLimited && hidden > 0 && (
-          <span className="text-amber-400 text-xs ml-auto">+{hidden} more</span>
-        )}
+        {isLimited && hidden > 0 && <span className="text-amber-400 text-xs ml-auto">+{hidden} more</span>}
       </div>
       <ul className="space-y-2">
         {displayed.map((issue: any, i: number) => (
@@ -62,9 +60,7 @@ function IssueList({ issues, severity, isLimited }: { issues: any[]; severity: "
               <span className="text-white font-medium">{issue.rule}: </span>
               {issue.message}
               {!isLimited && issue.fix && (
-                <div className="mt-1 text-xs text-white/40 bg-white/5 rounded px-2 py-1">
-                  Fix: {issue.fix}
-                </div>
+                <div className="mt-1 text-xs text-white/40 bg-white/5 rounded px-2 py-1">Fix: {issue.fix}</div>
               )}
             </div>
           </li>
@@ -74,7 +70,6 @@ function IssueList({ issues, severity, isLimited }: { issues: any[]; severity: "
   );
 }
 
-// Normalize gdpr-checks output fields to what IssueList expects ({ rule, message, fix })
 function normalizeIssue(c: any) {
   return {
     rule: c.name || c.id || "Unknown",
@@ -85,26 +80,19 @@ function normalizeIssue(c: any) {
 
 function FindingsSection({ result, isLimitedPreview }: { result: any; isLimitedPreview?: boolean }) {
   const all = result.ruleChecks || [];
-  const critical = all
-    .filter((c: any) => c.severity === "critical" || c.severity === "error")
-    .map(normalizeIssue);
-  const warnings = all
-    .filter((c: any) => c.severity === "warning")
-    .map(normalizeIssue);
-  const passed = all
-    .filter((c: any) => c.severity === "pass" || c.severity === "info")
-    .map(normalizeIssue);
+  const critical = all.filter((c: any) => c.severity === "critical" || c.severity === "error").map(normalizeIssue);
+  const warnings = all.filter((c: any) => c.severity === "warning" || c.passed === false).map(normalizeIssue);
+  const passed = all.filter((c: any) => c.severity === "pass" || c.severity === "info" || c.passed === true).map(normalizeIssue);
 
   const score = result.aiAnalysis?.gdprScore != null
     ? result.aiAnalysis.gdprScore
     : result.ruleChecks?.length
-    ? Math.max(0, 100 - critical.length * 25 - warnings.length * 10)
-    : null;
+      ? Math.max(0, 100 - critical.length * 25 - warnings.length * 10)
+      : null;
 
   return (
     <div className="space-y-6">
       {score !== null && <ScoreCard score={score} />}
-
       {critical.length > 0 && <IssueList issues={critical} severity="critical" isLimited={isLimitedPreview} />}
       {warnings.length > 0 && <IssueList issues={warnings} severity="warning" isLimited={isLimitedPreview} />}
       {passed.length > 0 && <IssueList issues={passed} severity="info" isLimited={isLimitedPreview} />}
@@ -118,38 +106,91 @@ function FindingsSection({ result, isLimitedPreview }: { result: any; isLimitedP
           <p className="text-white/60 text-sm whitespace-pre-wrap">
             {result.aiAnalysis.summary || result.aiAnalysis.text || "No summary available."}
           </p>
-          {result.aiAnalysis.topRisks?.length > 0 && (
-            <div className="mt-4">
-              <p className="text-white/40 text-xs uppercase tracking-wider mb-2">Top Risks</p>
-              <ul className="space-y-1">
-                {result.aiAnalysis.topRisks.map((risk: string, i: number) => (
-                  <li key={i} className="text-sm text-white/70 flex items-start gap-2">
-                    <span className="text-red-400 mt-0.5">!</span>
-                    {risk}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
       )}
     </div>
   );
 }
 
-export default function ScanResultsClient({ scanId, url, email, status, result, isLimitedPreview }: Props) {
+function toLimitedPreview(result: any): any {
+  if (!result) return result;
+  const ISSUE_CAP = 5;
+  const stripIssue = (issue: any) => ({
+    ...issue,
+    recommendation: undefined,
+    fix: undefined,
+  });
+
+  return {
+    ...result,
+    ruleChecks: (result.ruleChecks || []).slice(0, ISSUE_CAP).map(stripIssue),
+    aiAnalysis: null,
+  };
+}
+
+export default function ScanResultsClient({ scanId, url: initialUrl, email: initialEmail, status: initialStatus, result: initialResult, isLimitedPreview }: Props) {
+  const [status, setStatus] = useState(initialStatus || "loading");
+  const [result, setResult] = useState(initialResult ? toLimitedPreview(initialResult) : null);
+  const [url, setUrl] = useState(initialUrl || "");
+  const [email, setEmail] = useState(initialEmail || null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
-  const [accountEmail, setAccountEmail] = useState(email || "");
+  const [accountEmail, setAccountEmail] = useState(initialEmail || "");
   const [accountPassword, setAccountPassword] = useState("");
   const [accountError, setAccountError] = useState("");
   const [accountLoading, setAccountLoading] = useState(false);
   const [accountSuccess, setAccountSuccess] = useState(false);
 
-  const handleGetFullReport = () => {
-    setShowUpgradeModal(true);
-  };
+  useEffect(() => {
+    if (initialResult) return;
+
+    let cancelled = false;
+    let attempts = 0;
+    const maxAttempts = 60;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/scan/${encodeURIComponent(scanId)}`);
+        const data = await res.json() as { status?: string; url?: string; email?: string | null; result?: any };
+        if (cancelled) return;
+
+        if (!res.ok) {
+          setStatus("failed");
+          return;
+        }
+
+        setStatus(data.status || "loading");
+        setUrl(data.url || "");
+        setEmail(data.email || null);
+        if (data.result) {
+          setResult(toLimitedPreview(data.result));
+          setStatus("completed");
+          return;
+        }
+
+        attempts += 1;
+        if (attempts < maxAttempts) {
+          window.setTimeout(poll, 2000);
+        } else {
+          setStatus("failed");
+        }
+      } catch {
+        if (cancelled) return;
+        attempts += 1;
+        if (attempts < maxAttempts) {
+          window.setTimeout(poll, 2000);
+        } else {
+          setStatus("failed");
+        }
+      }
+    };
+
+    poll();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialResult, scanId]);
 
   const handlePurchasePDF = async () => {
     setLoading(true);
@@ -200,44 +241,33 @@ export default function ScanResultsClient({ scanId, url, email, status, result, 
 
   return (
     <div className="min-h-screen bg-midnight">
-      {/* Header */}
       <header className="border-b border-white/10 bg-midnight-light">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/" className="font-heading text-xl font-bold text-white hover:text-accent-glow transition-colors">
             ComplyScan
           </Link>
-          <Link
-            href="/login"
-            className="text-sm text-white/50 hover:text-white/70 transition-colors"
-          >
+          <Link href="/login" className="text-sm text-white/50 hover:text-white/70 transition-colors">
             Dashboard →
           </Link>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-10">
-        {isLimitedPreview && (
+        {isLimitedPreview && status === "completed" && (
           <div className="mb-6 bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 text-sm text-amber-200 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 mt-0.5 shrink-0" />
             <span>
-              <strong>Free preview.</strong> Showing top 5 issues per category.{" "}
-              <button
-                onClick={() => setShowUpgradeModal(true)}
-                className="underline hover:no-underline font-medium"
-              >
-                Upgrade
-              </button>{" "}
-              to unlock all issues, fixes, and AI analysis.
+              <strong>Free preview.</strong> Showing top issues only. <button onClick={() => setShowUpgradeModal(true)} className="underline hover:no-underline font-medium">Upgrade</button> to unlock fixes, AI analysis, and the PDF.
             </span>
           </div>
         )}
-        {status === "processing" && (
+
+        {(status === "loading" || status === "pending" || status === "processing") && (
           <div className="text-center py-20">
             <div className="inline-flex items-center gap-3 text-white/60">
               <RefreshCw className="w-5 h-5 animate-spin" />
-              <span>Scan in progress — this page will update automatically...</span>
+              <span>Scan in progress — this page updates automatically...</span>
             </div>
-            <meta httpEquiv="refresh" content="10" />
           </div>
         )}
 
@@ -246,39 +276,27 @@ export default function ScanResultsClient({ scanId, url, email, status, result, 
             <XCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
             <h1 className="text-2xl font-bold text-white mb-2">Scan Failed</h1>
             <p className="text-white/60 mb-6">We couldn't scan this website. It may be down or blocking our crawler.</p>
-            <Link href="/" className="px-6 py-3 bg-accent-blue text-white rounded-lg font-medium hover:bg-accent-glow transition-all">
-              Try another URL
-            </Link>
+            <Link href="/" className="px-6 py-3 bg-accent-blue text-white rounded-lg font-medium hover:bg-accent-glow transition-all">Try another URL</Link>
           </div>
         )}
 
         {status === "completed" && result && (
           <>
-            {/* Summary banner */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 bg-midnight-light border border-white/10 rounded-2xl p-6">
               <div>
                 <h1 className="text-2xl font-bold text-white mb-1">GDPR Compliance Report</h1>
                 <p className="text-white/40 text-sm">{url}</p>
-                {email && <p className="text-white/30 text-xs mt-1">Sent to {email}</p>}
+                {email && <p className="text-white/30 text-xs mt-1">Email: {email}</p>}
               </div>
               <div className="flex gap-3">
-                <button
-                  onClick={handleGetFullReport}
-                  className="rounded-lg bg-accent-blue px-5 py-2.5 font-semibold text-white hover:bg-accent-glow transition-all text-sm flex items-center gap-2"
-                >
+                <button onClick={() => setShowUpgradeModal(true)} className="rounded-lg bg-accent-blue px-5 py-2.5 font-semibold text-white hover:bg-accent-glow transition-all text-sm flex items-center gap-2">
                   <FileText className="w-4 h-4" />
                   Get Full PDF Report
                 </button>
-                <Link
-                  href="/"
-                  className="rounded-lg bg-white/10 px-5 py-2.5 font-semibold text-white hover:bg-white/20 transition-all text-sm"
-                >
-                  Scan Another
-                </Link>
+                <Link href="/" className="rounded-lg bg-white/10 px-5 py-2.5 font-semibold text-white hover:bg-white/20 transition-all text-sm">Scan Another</Link>
               </div>
             </div>
 
-            {/* Save results banner */}
             {!accountSuccess && (
               <div className="mb-6 bg-gradient-to-r from-accent-blue/10 via-midnight-light to-midnight-light border border-accent-blue/20 rounded-2xl p-5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -286,84 +304,50 @@ export default function ScanResultsClient({ scanId, url, email, status, result, 
                     <p className="text-white font-semibold mb-1">Save your scan results</p>
                     <p className="text-white/50 text-sm">Create a free account to access your reports anytime and track compliance over time.</p>
                   </div>
-                  <button
-                    onClick={() => setShowAccountModal(true)}
-                    className="rounded-lg bg-accent-blue px-5 py-2.5 font-semibold text-white hover:bg-accent-glow transition-all text-sm shrink-0"
-                  >
-                    Create Free Account
-                  </button>
+                  <button onClick={() => setShowAccountModal(true)} className="rounded-lg bg-accent-blue px-5 py-2.5 font-semibold text-white hover:bg-accent-glow transition-all text-sm shrink-0">Create Free Account</button>
                 </div>
               </div>
             )}
 
-            {/* Key findings */}
             <div className="mb-8">
               <h2 className="text-xl font-semibold text-white mb-4">Key Findings</h2>
               <FindingsSection result={result} isLimitedPreview={isLimitedPreview} />
             </div>
 
-            {/* Upgrade CTA */}
             <div className="bg-gradient-to-r from-accent-blue/20 via-midnight-light to-midnight-light border border-accent-blue/30 rounded-2xl p-8 text-center">
               <Lock className="w-8 h-8 text-accent-blue mx-auto mb-3" />
               <h3 className="text-xl font-bold text-white mb-2">Unlock the Full Report</h3>
               <p className="text-white/50 text-sm mb-6 max-w-md mx-auto">
-                This scan shows a preview of your GDPR compliance status.
-                Get the complete PDF report with issue details, fix recommendations,
-                and legal references for <span className="text-white font-semibold">$29</span>.
+                Get the complete PDF report with detailed fixes, executive summary, and AI analysis for <span className="text-white font-semibold">$29</span>.
               </p>
-              <button
-                onClick={handlePurchasePDF}
-                disabled={loading}
-                className="rounded-lg bg-accent-blue px-8 py-3 font-semibold text-white hover:bg-accent-glow transition-all shadow-lg shadow-accent-blue/30 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <button onClick={handlePurchasePDF} disabled={loading} className="rounded-lg bg-accent-blue px-8 py-3 font-semibold text-white hover:bg-accent-glow transition-all shadow-lg shadow-accent-blue/30 disabled:opacity-50 disabled:cursor-not-allowed">
                 {loading ? "Redirecting..." : "Get PDF Report — $29"}
               </button>
               <p className="text-white/30 text-xs mt-3">Secure payment via Stripe · Instant delivery</p>
             </div>
           </>
         )}
-
-        {status === "completed" && !result && (
-          <div className="text-center py-12">
-            <p className="text-white/50">Loading results...</p>
-          </div>
-        )}
       </main>
 
-      {/* Simple inline modal backdrop */}
       {showUpgradeModal && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setShowUpgradeModal(false)}>
           <div className="bg-midnight-light border border-white/20 rounded-2xl p-8 max-w-md w-full" onClick={e => e.stopPropagation()}>
             <Lock className="w-8 h-8 text-accent-blue mx-auto mb-3" />
             <h3 className="text-xl font-bold text-white mb-2 text-center">Unlock Full PDF Report</h3>
-            <p className="text-white/50 text-sm mb-6 text-center">
-              Complete report with legal references, detailed fix guides, and executive summary for $29.
-            </p>
-            <button
-              onClick={handlePurchasePDF}
-              disabled={loading}
-              className="w-full rounded-lg bg-accent-blue py-3 font-semibold text-white hover:bg-accent-glow transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
+            <p className="text-white/50 text-sm mb-6 text-center">Complete report with legal references, detailed fix guides, and executive summary for $29.</p>
+            <button onClick={handlePurchasePDF} disabled={loading} className="w-full rounded-lg bg-accent-blue py-3 font-semibold text-white hover:bg-accent-glow transition-all disabled:opacity-50 disabled:cursor-not-allowed">
               {loading ? "Redirecting..." : "Continue to Payment — $29"}
             </button>
-            <button
-              onClick={() => setShowUpgradeModal(false)}
-              className="w-full mt-3 text-center text-white/30 text-sm hover:text-white/60 transition-colors"
-            >
-              Maybe later
-            </button>
+            <button onClick={() => setShowUpgradeModal(false)} className="w-full mt-3 text-center text-white/30 text-sm hover:text-white/60 transition-colors">Maybe later</button>
           </div>
         </div>
       )}
 
-      {/* Create Account Modal */}
       {showAccountModal && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setShowAccountModal(false)}>
           <div className="bg-midnight-light border border-white/20 rounded-2xl p-8 max-w-md w-full" onClick={e => e.stopPropagation()}>
             <h3 className="text-xl font-bold text-white mb-2 text-center">Save Your Scan Results</h3>
-            <p className="text-white/50 text-sm mb-6 text-center">
-              Create a free account to access your report and all future scans.
-            </p>
+            <p className="text-white/50 text-sm mb-6 text-center">Create a free account to access your report and all future scans.</p>
 
             {accountSuccess ? (
               <div className="text-center">
@@ -377,49 +361,20 @@ export default function ScanResultsClient({ scanId, url, email, status, result, 
               <form onSubmit={handleCreateAccount} className="space-y-4">
                 <div>
                   <label className="block text-white/50 text-xs mb-1 uppercase tracking-wider">Email</label>
-                  <input
-                    type="email"
-                    value={accountEmail}
-                    onChange={e => setAccountEmail(e.target.value)}
-                    required
-                    className="w-full rounded-lg bg-midnight border border-white/20 px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-accent-blue transition-all"
-                    placeholder="your@email.com"
-                  />
+                  <input type="email" value={accountEmail} onChange={e => setAccountEmail(e.target.value)} required className="w-full rounded-lg bg-midnight border border-white/20 px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-accent-blue transition-all" placeholder="your@email.com" />
                 </div>
                 <div>
                   <label className="block text-white/50 text-xs mb-1 uppercase tracking-wider">Password</label>
-                  <input
-                    type="password"
-                    value={accountPassword}
-                    onChange={e => setAccountPassword(e.target.value)}
-                    required
-                    minLength={8}
-                    className="w-full rounded-lg bg-midnight border border-white/20 px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-accent-blue transition-all"
-                    placeholder="Min. 8 characters"
-                  />
+                  <input type="password" value={accountPassword} onChange={e => setAccountPassword(e.target.value)} required minLength={8} className="w-full rounded-lg bg-midnight border border-white/20 px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-accent-blue transition-all" placeholder="Min. 8 characters" />
                 </div>
                 {accountError && <p className="text-red-400 text-sm">{accountError}</p>}
-                <button
-                  type="submit"
-                  disabled={accountLoading}
-                  className="w-full rounded-lg bg-accent-blue py-3 font-semibold text-white hover:bg-accent-glow transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
+                <button type="submit" disabled={accountLoading} className="w-full rounded-lg bg-accent-blue py-3 font-semibold text-white hover:bg-accent-glow transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                   {accountLoading ? "Creating account..." : "Create Free Account"}
                 </button>
-                <p className="text-center text-white/30 text-xs">
-                  Already have an account?{" "}
-                  <Link href="/login" className="text-accent-blue hover:text-accent-glow transition-colors">
-                    Sign in
-                  </Link>
-                </p>
+                <p className="text-center text-white/30 text-xs">Already have an account? <Link href="/login" className="text-accent-blue hover:text-accent-glow transition-colors">Sign in</Link></p>
               </form>
             )}
-            <button
-              onClick={() => setShowAccountModal(false)}
-              className="w-full mt-3 text-center text-white/30 text-sm hover:text-white/60 transition-colors"
-            >
-              {accountSuccess ? "Close" : "Maybe later"}
-            </button>
+            <button onClick={() => setShowAccountModal(false)} className="w-full mt-3 text-center text-white/30 text-sm hover:text-white/60 transition-colors">{accountSuccess ? "Close" : "Maybe later"}</button>
           </div>
         </div>
       )}

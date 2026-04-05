@@ -1,9 +1,32 @@
 {
-	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "compliance-checker",
-	"compatibility_date": "2026-04-04",
-	"compatibility_flags": [
-		"nodejs_compat"
-	],
-	"pages_build_output_dir": ".open-next"
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "compliance-checker",
+  "compatibility_date": "2026-04-04",
+  "compatibility_flags": ["nodejs_compat"],
+  "pages_build_output_dir": ".open-next",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "compliance-checker-db",
+      "database_id": "3f5f083a-1943-46cd-b661-5df10f9fecce",
+      "migrations_dir": "d1-migrations"
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "SCAN_QUEUE",
+        "queue": "compliance-checker-scan-queue"
+      }
+    ]
+  },
+  "r2_buckets": [
+    {
+      "binding": "REPORTS_BUCKET",
+      "bucket_name": "compliance-checker-reports"
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  }
 }

@@ -1,27 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, compressGzip, sendScanJob } from '@/lib/env';
+import { MOCK_SCAN_MODE, buildMockScanResult } from '@/lib/mock-scan';
 
-const FREE_SCAN_LIMIT = 3; // per email per month
+const FREE_SCAN_LIMIT = 3;
 
-function getMonthlyScanCount(db: any, email: string): number {
+async function getMonthlyScanCount(db: ReturnType<typeof getDb>, email: string): Promise<number> {
   const startOfMonth = new Date();
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
-  const row = db
-    .prepare(
-      `SELECT COUNT(*) as count FROM scans WHERE email = ? AND created_at >= ?`
-    )
-    .get(email, startOfMonth.toISOString()) as { count: number } | undefined;
+  const row = await db.prepare(
+    'SELECT COUNT(*) as count FROM scans WHERE email = ? AND created_at >= ?'
+  ).get(email, startOfMonth.toISOString()) as { count?: number } | undefined;
   return row?.count ?? 0;
 }
 
-/**
- * POST /api/scan/free
- *
- * Cloudflare Pages: writes to D1, sends job to SCAN_QUEUE, returns { status: 'queued' }
- * Local dev: falls back to synchronous scan (no SCAN_QUEUE)
- */
 export async function POST(request: NextRequest) {
   const { url, email } = await request.json() as { url?: string; email?: string };
 
@@ -32,11 +25,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Email is required for free scans' }, { status: 400 });
   }
 
-  // Get env for Cloudflare Pages (falls back to undefined for local dev)
   const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
   const db = getDb(env);
 
-  const count = getMonthlyScanCount(db, email);
+  const count = await getMonthlyScanCount(db, email);
   if (count >= FREE_SCAN_LIMIT) {
     return NextResponse.json(
       {
@@ -48,28 +40,33 @@ export async function POST(request: NextRequest) {
   }
 
   const scanId = uuidv4();
-
-  // Insert with pending status — queue will update to processing
-  db.prepare(
-    `INSERT INTO scans (id, url, status, email, stripe_session_id, created_at) VALUES (?, ?, 'pending', ?, NULL, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`
+  await db.prepare(
+    `INSERT INTO scans (id, url, status, email, stripe_session_id, created_at)
+     VALUES (?, ?, 'pending', ?, NULL, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`
   ).run(scanId, url, email);
 
-  // ── Cloudflare: send to Queue ───────────────────────────────────────────
   if (env?.SCAN_QUEUE) {
     await sendScanJob({ scanId, url, email, trigger: 'free' }, env);
-
-    // Non-blocking welcome email
     import('@/lib/mailjet').then(({ subscribeToNurture }) => {
       subscribeToNurture({ email, scanUrl: url }).catch(() => {});
     });
-
     return NextResponse.json({ scanId, status: 'queued' });
   }
 
-  // ── Local dev fallback: run synchronously (no SCAN_QUEUE) ─────────────────
-  db.prepare(`UPDATE scans SET status = 'processing' WHERE id = ?`).run(scanId);
+  await db.prepare(`UPDATE scans SET status = 'processing' WHERE id = ?`).run(scanId);
 
   try {
+    if (MOCK_SCAN_MODE) {
+      const result = buildMockScanResult(url);
+      const resultJson = await compressGzip(JSON.stringify(result));
+      await db.prepare(
+        `UPDATE scans
+         SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+         WHERE id = ?`
+      ).run(resultJson, scanId);
+      return NextResponse.json({ scanId, status: 'completed', result });
+    }
+
     const { crawlPage } = await import('@/lib/crawler');
     const { runRuleBasedChecks } = await import('@/lib/gdpr-checks');
     const { analyzeWithAI } = await import('@/lib/ai-analysis');
@@ -102,14 +99,13 @@ export async function POST(request: NextRequest) {
       scannedAt: new Date().toISOString(),
     };
 
-    const rawJson = JSON.stringify(result);
-    const resultJson = await compressGzip(rawJson);
-
-    db.prepare(
-      `UPDATE scans SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`
+    const resultJson = await compressGzip(JSON.stringify(result));
+    await db.prepare(
+      `UPDATE scans
+       SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+       WHERE id = ?`
     ).run(resultJson, scanId);
 
-    // Trigger welcome email (non-blocking)
     import('@/lib/mailjet').then(({ subscribeToNurture }) => {
       subscribeToNurture({ email, scanUrl: url }).catch(() => {});
     });
@@ -117,7 +113,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ scanId, status: 'completed', result });
   } catch (err: any) {
     console.error(`Free scan ${scanId} failed:`, err.message);
-    db.prepare(`UPDATE scans SET status = 'failed' WHERE id = ?`).run(scanId);
+    await db.prepare(`UPDATE scans SET status = 'failed' WHERE id = ?`).run(scanId);
     return NextResponse.json({ error: err.message || 'Scan failed' }, { status: 500 });
   }
 }

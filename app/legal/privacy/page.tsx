@@ -157,15 +157,15 @@ export default function PrivacyPage() {
                 </a>
               </li>
               <li>
-                <strong>Resend</strong> — for transactional email delivery (sending you scan
-                reports). Resend's privacy policy is available at:{" "}
+                <strong>Mailjet</strong> — for transactional email delivery (sending you scan
+                reports). Mailjet's privacy policy is available at:{" "}
                 <a
-                  href="https://resend.com/privacy"
+                  href="https://www.mailjet.com/legal/privacy-policy/"
                   className="text-accent-blue hover:underline"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  resend.com/privacy
+mailjet.com/legal/privacy-policy
                 </a>
               </li>
               <li>
@@ -306,7 +306,7 @@ export default function PrivacyPage() {
             </h2>
             <p>
               ComplyScan processes data on servers located within the European Economic
-              Area (EEA). Where we use service providers outside the EEA (e.g., Resend
+              Area (EEA). Where we use service providers outside the EEA (e.g., Mailjet
               for email delivery), we ensure appropriate safeguards are in place, such
               as Standard Contractual Clauses approved by the European Commission.
             </p>

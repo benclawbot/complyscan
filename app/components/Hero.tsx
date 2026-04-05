@@ -93,7 +93,7 @@ export function Hero() {
           style={{ animation: "slide-up 0.6s ease-out 0.1s both" }}
         >
           Free GDPR compliance scan in seconds. See every issue before your
-          users do — no credit card, no signup required.
+          users do — no credit card required.
         </p>
 
         {/* Main content: form + demo side by side on large screens */}
@@ -118,7 +118,8 @@ export function Hero() {
                 name="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com (for your report)"
+                placeholder="your@email.com"
+                required
                 className="rounded-xl bg-midnight-light border border-white/15 px-5 py-4 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-accent-blue/60 focus:border-accent-blue/40 transition-all text-base"
               />
               {error && (

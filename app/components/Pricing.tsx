@@ -77,10 +77,21 @@ export function Pricing() {
     setLoading(plan);
 
     try {
+      let payload: { url?: string; email?: string; plan: "pdf" | "monthly" } = { plan };
+
+      if (plan === "pdf") {
+        const enteredUrl = window.prompt("Enter the website URL for your PDF report", "https://example.com")?.trim();
+        if (!enteredUrl) {
+          setLoading(null);
+          return;
+        }
+        payload = { plan, url: enteredUrl };
+      }
+
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: "", email: undefined, plan }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json() as { url?: string; error?: string };

@@ -1,11 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { getDb } from '@/lib/env';
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }, env: any) {
-  const sessionId = request.nextUrl.searchParams.get("session_id");
+const MOCK_STRIPE = process.env.MOCK_STRIPE === '1' || process.env.E2E_TEST_MODE === '1';
 
+export async function GET(request: NextRequest) {
+  const sessionId = request.nextUrl.searchParams.get('session_id');
   if (!sessionId) {
     return NextResponse.json({ error: 'session_id required' }, { status: 400 });
+  }
+
+  const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
+  const db = getDb(env);
+
+  if (MOCK_STRIPE && sessionId.startsWith('mock_monthly_')) {
+    const subscriber = await db.prepare('SELECT id, email FROM subscribers WHERE stripe_customer_id = ?').get(sessionId) as any;
+    if (!subscriber) {
+      return NextResponse.json({ mode: 'subscription', subscriberToken: null, customerEmail: null });
+    }
+
+    const tokenRec = await db.prepare(
+      'SELECT token FROM subscriber_tokens WHERE subscriber_id = ? ORDER BY created_at DESC LIMIT 1'
+    ).get(subscriber.id) as any;
+
+    return NextResponse.json({
+      mode: 'subscription',
+      customerEmail: subscriber.email,
+      subscriberToken: tokenRec?.token || null,
+    });
   }
 
   const stripeKey = process.env.STRIPE_SECRET_KEY;
@@ -26,23 +48,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       customerEmail: session.customer_email || null,
     };
 
-    // For subscriptions, look up the subscriber token from the DB
     if (session.mode === 'subscription' && session.customer) {
-      try {
-        const { getDb } = await import('@/lib/env');
-        const db = getDb(env);
-        const sub = await db.prepare(
-          'SELECT id, token FROM subscribers WHERE stripe_customer_id = ?'
-        ).get(session.customer as string) as any;
-        if (sub) {
-          const tokenRec = await db.prepare(
-            'SELECT token FROM subscriber_tokens WHERE subscriber_id = ? ORDER BY created_at DESC LIMIT 1'
-          ).get(sub.id) as any;
-          if (tokenRec) {
-            result.subscriberToken = tokenRec.token;
-          }
-        }
-      } catch (_) {}
+      const subscriber = await db.prepare('SELECT id, email FROM subscribers WHERE stripe_customer_id = ?').get(session.customer as string) as any;
+      if (subscriber) {
+        const tokenRec = await db.prepare(
+          'SELECT token FROM subscriber_tokens WHERE subscriber_id = ? ORDER BY created_at DESC LIMIT 1'
+        ).get(subscriber.id) as any;
+        result.subscriberToken = tokenRec?.token || null;
+        result.customerEmail = subscriber.email || result.customerEmail;
+      }
     }
 
     return NextResponse.json(result);

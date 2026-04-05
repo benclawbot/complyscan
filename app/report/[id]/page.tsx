@@ -1,115 +1,82 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useState } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
 
 export default function ReportPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const scanId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const sessionId = searchParams.get('session_id') || '';
+  const token = searchParams.get('token') || '';
 
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [error, setError] = useState<string>("");
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [reportHtml, setReportHtml] = useState<string | null>(null);
-  const [url, setUrl] = useState<string>("");
-  const [pdfResult, setPdfResult] = useState<any>(null);
 
   useEffect(() => {
     if (!scanId) return;
 
-    // ── 1. sessionStorage (set by success page before redirect) ──
-    try {
-      const stored = sessionStorage.getItem(`scan:${scanId}`);
-      if (stored) {
-        const result = JSON.parse(stored);
-        loadResult(result);
-        return;
-      }
-    } catch (e) {
-      console.error("sessionStorage read failed:", e);
-    }
-
-    // ── 2. API polling ──
-    let attempts = 0;
-    const maxAttempts = 90;
-
-    const poll = async () => {
+    const loadFromStoredResult = async () => {
       try {
-        const r = await fetch(`/api/report/${encodeURIComponent(scanId!)}`);
-        if (r.ok) {
-          const data = await r.json() as { reportHtml?: string; url?: string };
-          if (data.reportHtml) {
-            setReportHtml(data.reportHtml);
-            if (data.url) setUrl(data.url);
-            setStatus("ready");
-            return;
-          }
-        }
-        attempts++;
-        if (attempts < maxAttempts) {
-          setTimeout(poll, 1000);
-        } else {
-          setStatus("error");
-        }
+        const stored = sessionStorage.getItem(`scan:${scanId}`);
+        if (!stored) return false;
+        const result = JSON.parse(stored);
+        const r = await fetch(`/api/report/${encodeURIComponent(scanId)}/pdf?format=html`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(result),
+        });
+        if (!r.ok) return false;
+        setReportHtml(await r.text());
+        setStatus('ready');
+        return true;
       } catch {
-        attempts++;
-        if (attempts >= maxAttempts) setStatus("error");
-        else setTimeout(poll, 1000);
+        return false;
       }
     };
 
-    poll();
+    const poll = async () => {
+      const suffix = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : '';
+      const r = await fetch(`/api/report/${encodeURIComponent(scanId)}${suffix}`);
+      if (!r.ok) throw new Error('Report unavailable');
+      const data = await r.json() as { reportHtml?: string };
+      if (!data.reportHtml) throw new Error('Missing report html');
+      setReportHtml(data.reportHtml);
+      setStatus('ready');
+    };
 
-    async function loadResult(result: any) {
-      setPdfResult(result);
-      if (result.crawl?.url) setUrl(result.crawl.url);
-      // Generate HTML report client-side
-      try {
-        const r = await fetch(`/api/report/${encodeURIComponent(scanId!)}/pdf?format=html`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(result),
-        });
-        if (r.ok) {
-          const html = await r.text();
-          setReportHtml(html);
-          setStatus("ready");
-        } else {
-          setStatus("error");
-        }
-      } catch {
-        setStatus("error");
-      }
-    }
-  }, [scanId]);
+    let cancelled = false;
+    (async () => {
+      const loaded = await loadFromStoredResult();
+      if (loaded || cancelled) return;
 
-  const handleDownloadPdf = async () => {
-    if (pdfResult) {
-      // Use embedded result — no DB round-trip needed
-      try {
-        const r = await fetch(`/api/report/${encodeURIComponent(scanId!)}/pdf`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(pdfResult),
-        });
-        if (r.ok) {
-          const blob = await r.blob();
-          const blobUrl = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = blobUrl;
-          a.download = `GDPR-Report-${scanId}.pdf`;
-          a.click();
-          URL.revokeObjectURL(blobUrl);
+      let attempts = 0;
+      while (!cancelled && attempts < 90) {
+        try {
+          await poll();
           return;
+        } catch {
+          attempts += 1;
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
-      } catch (e) {
-        console.error("PDF download failed:", e);
       }
-    }
-    // Fallback: open PDF URL in new tab
-    window.open(`/api/report/${encodeURIComponent(scanId || "")}/pdf`, "_blank");
+      if (!cancelled) setStatus('error');
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [scanId, sessionId]);
+
+  const handleDownloadPdf = () => {
+    const params = new URLSearchParams();
+    if (sessionId) params.set('session_id', sessionId);
+    if (token) params.set('token', token);
+    const suffix = params.toString() ? `?${params.toString()}` : '';
+    window.open(`/api/report/${encodeURIComponent(scanId || '')}/pdf${suffix}`, '_blank');
   };
 
-  if (status === "error") {
+  if (status === 'error') {
     return (
       <div className="min-h-screen bg-midnight flex items-center justify-center px-4">
         <div className="max-w-md w-full text-center">
@@ -120,23 +87,19 @@ export default function ReportPage() {
           </div>
           <h1 className="text-2xl font-bold text-white mb-2">Report Unavailable</h1>
           <p className="text-white/60 mb-8">The scan could not be completed. Please try again.</p>
-          <a href="/" className="inline-block px-6 py-3 bg-accent-blue text-white rounded-lg font-medium hover:bg-accent-blue/90 transition-all">
-            Scan Another Site
-          </a>
+          <a href="/" className="inline-block px-6 py-3 bg-accent-blue text-white rounded-lg font-medium hover:bg-accent-blue/90 transition-all">Scan Another Site</a>
         </div>
       </div>
     );
   }
 
-  if (status !== "ready" || !reportHtml) {
+  if (status !== 'ready' || !reportHtml) {
     return (
       <div className="min-h-screen bg-midnight flex items-center justify-center px-4">
         <div className="max-w-md w-full text-center">
-          {/* Outer ring */}
           <div className="relative w-20 h-20 mx-auto mb-8">
             <div className="absolute inset-0 rounded-full border-4 border-white/10" />
             <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-accent-blue animate-spin" style={{ animationDuration: '1.2s' }} />
-            {/* Inner content */}
             <div className="absolute inset-0 rounded-full flex items-center justify-center">
               <div className="w-3 h-3 bg-accent-blue rounded-full opacity-60" />
             </div>
@@ -152,7 +115,6 @@ export default function ReportPage() {
 
   return (
     <div className="min-h-screen bg-midnight">
-      {/* Sticky header */}
       <div className="sticky top-0 z-10 bg-midnight/95 backdrop-blur-sm border-b border-white/5">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -167,31 +129,20 @@ export default function ReportPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={handleDownloadPdf}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-lg text-sm font-medium hover:bg-white/20 transition-all border border-white/10"
-            >
+            <button onClick={handleDownloadPdf} className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-lg text-sm font-medium hover:bg-white/20 transition-all border border-white/10">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               Download PDF
             </button>
-            <a href="/" className="inline-flex items-center gap-2 px-4 py-2 bg-accent-blue text-white rounded-lg text-sm font-medium hover:bg-accent-blue/90 transition-all">
-              Scan Another
-            </a>
+            <a href="/" className="inline-flex items-center gap-2 px-4 py-2 bg-accent-blue text-white rounded-lg text-sm font-medium hover:bg-accent-blue/90 transition-all">Scan Another</a>
           </div>
         </div>
       </div>
 
-      {/* Report body */}
       <div className="max-w-4xl mx-auto px-4 py-6">
         <div className="bg-white rounded-xl overflow-hidden shadow-2xl">
-          <iframe
-            srcDoc={reportHtml}
-            className="w-full"
-            style={{ height: "80vh", border: "none" }}
-            title="GDPR Report"
-          />
+          <iframe srcDoc={reportHtml} className="w-full" style={{ height: '80vh', border: 'none' }} title="GDPR Report" />
         </div>
       </div>
     </div>

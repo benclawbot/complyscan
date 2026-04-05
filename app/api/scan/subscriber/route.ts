@@ -1,49 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { getDb, sendScanJob } from '@/lib/env';
+import { getDb, sendScanJob, compressGzip } from '@/lib/env';
+import { MOCK_SCAN_MODE, buildMockScanResult } from '@/lib/mock-scan';
+import { getBearerToken, verifySubscriberToken, touchSubscriberToken } from '@/lib/auth';
 import { generateReportHtml } from '@/lib/report';
 
-function verifySubscriberToken(db: any, token: string): { subscriberId: string; email: string } | null {
-  const rec = db.prepare(`
-    SELECT st.subscriber_id, s.email, s.status
-    FROM subscriber_tokens st
-    JOIN subscribers s ON s.id = st.subscriber_id
-    WHERE st.token = ?
-  `).get(token) as any;
-
-  if (!rec) return null;
-  if (rec.status !== 'active') return null;
-  return { subscriberId: rec.subscriber_id, email: rec.email };
-}
-
-/**
- * GET /api/scan/subscriber — list recent scans
- * POST /api/scan/subscriber — create new scan (queue-based on Cloudflare)
- */
-export async function GET(request: NextRequest) {
-  const token = request.headers.get('Authorization')?.replace('Bearer ', '');
-
-  if (!token) {
-    return NextResponse.json({ error: 'Token required' }, { status: 401 });
-  }
-
+async function getSubscriberFromRequest(request: NextRequest, explicitToken?: string) {
   const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
   const db = getDb(env);
+  const token = explicitToken || getBearerToken(request);
+  if (!token) return { db, token: null, subscriber: null };
+  const subscriber = await verifySubscriberToken(db, token);
+  return { db, token, subscriber };
+}
 
-  const sub = verifySubscriberToken(db, token);
-  if (!sub) {
+export async function GET(request: NextRequest) {
+  const { db, token, subscriber } = await getSubscriberFromRequest(request);
+  if (!token || !subscriber) {
     return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
   }
 
-  db.prepare(`UPDATE subscriber_tokens SET last_used_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE token = ?`).run(token);
+  await touchSubscriberToken(db, token);
 
-  const scans = db.prepare(`
+  const scans = await db.prepare(`
     SELECT id, url, status, created_at, completed_at
     FROM scans
     WHERE email = ?
     ORDER BY created_at DESC
     LIMIT 50
-  `).all(sub.email);
+  `).all(subscriber.email);
 
   return NextResponse.json({ scans });
 }
@@ -51,15 +36,14 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as { url?: string; token?: string };
-    const { url, token } = body;
+    const { url, token: explicitToken } = body;
 
-    if (!url || !token) {
+    if (!url || !explicitToken) {
       return NextResponse.json({ error: 'URL and token are required' }, { status: 400 });
     }
 
-    let parsedUrl: URL;
     try {
-      parsedUrl = new URL(url);
+      const parsedUrl = new URL(url);
       if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
         throw new Error('Invalid protocol');
       }
@@ -67,38 +51,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
     }
 
-    const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
-    const db = getDb(env);
-
-    const sub = verifySubscriberToken(db, token);
-    if (!sub) {
+    const { db, token, subscriber } = await getSubscriberFromRequest(request, explicitToken);
+    if (!token || !subscriber) {
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
     }
 
-    db.prepare(`UPDATE subscriber_tokens SET last_used_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE token = ?`).run(token);
+    await touchSubscriberToken(db, token);
 
-    const subscriberId = sub.subscriberId;
-    const email = sub.email;
     const scanId = uuidv4();
-
-    // Create scan record with pending status
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO scans (id, url, email, status, subscriber_id, created_at)
       VALUES (?, ?, ?, 'pending', ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-    `).run(scanId, url, email, subscriberId);
+    `).run(scanId, url, subscriber.email, subscriber.subscriber_id);
 
-    // ── Cloudflare: send to Queue ─────────────────────────────────────────
+    const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
     if (env?.SCAN_QUEUE) {
-      await sendScanJob({ scanId, url, email, trigger: 'subscriber' }, env);
-      return NextResponse.json({
-        scanId,
-        status: 'queued',
-        message: 'Scan queued. You will receive the report by email.'
-      });
+      await sendScanJob({ scanId, url, email: subscriber.email, trigger: 'subscriber' }, env);
+      return NextResponse.json({ scanId, status: 'queued', message: 'Scan queued.' });
     }
 
-    // ── Local dev fallback: run synchronously (no SCAN_QUEUE) ───────────────
-    db.prepare(`UPDATE scans SET status = 'processing' WHERE id = ?`).run(scanId);
+    await db.prepare(`UPDATE scans SET status = 'processing' WHERE id = ?`).run(scanId);
+
+    if (MOCK_SCAN_MODE) {
+      const result = buildMockScanResult(url);
+      const resultJson = await compressGzip(JSON.stringify(result));
+      await db.prepare(`
+        UPDATE scans
+        SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+        WHERE id = ?
+      `).run(resultJson, scanId);
+      return NextResponse.json({ scanId, status: 'completed', result, message: 'Scan complete.' });
+    }
 
     const { crawlPage } = await import('@/lib/crawler');
     const { runRuleBasedChecks } = await import('@/lib/gdpr-checks');
@@ -115,35 +98,24 @@ export async function POST(request: NextRequest) {
       scannedAt: new Date().toISOString(),
     };
 
-    const { compressGzip } = await import('@/lib/env');
-    const rawJson = JSON.stringify(result);
-    const resultJson = await compressGzip(rawJson);
-    db.prepare(`
+    const resultJson = await compressGzip(JSON.stringify(result));
+    await db.prepare(`
       UPDATE scans
       SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
       WHERE id = ?
     `).run(resultJson, scanId);
 
-    // Email report
-    if (email && process.env.RESEND_API_KEY) {
-      const { Resend } = await import('resend');
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      const reportHtml = generateReportHtml(url, result);
-
-      await resend.emails.send({
-        from: 'ComplyScan <reports@complyscan.com>',
-        to: email,
+    if (subscriber.email && process.env.MAILJET_API_KEY && process.env.MAILJET_SECRET_KEY) {
+      const { sendReportEmail } = await import('@/lib/mailjet');
+      const reportHtml = generateReportHtml(url, result as any);
+      await sendReportEmail({
+        email: subscriber.email,
         subject: `GDPR Compliance Report for ${url}`,
         html: reportHtml,
       });
     }
 
-    return NextResponse.json({
-      scanId,
-      status: 'completed',
-      result,
-      message: 'Scan complete. Report sent by email.'
-    });
+    return NextResponse.json({ scanId, status: 'completed', result, message: 'Scan complete.' });
   } catch (error: any) {
     console.error('Subscriber scan error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
