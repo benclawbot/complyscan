@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { getDb, decompressGzip, getRuntimeEnv, sendScanJob } from '@/lib/env';
+import { getDb, getRuntimeEnv, sendScanJob } from '@/lib/env';
 
 export async function POST(request: NextRequest, { params: _params }: { params: Promise<{ id: string }> }, env: any) {
   env = getRuntimeEnv(env);
@@ -40,25 +40,9 @@ export async function POST(request: NextRequest, { params: _params }: { params: 
 
     await sendScanJob({ scanId, url, email, trigger: 'free' }, env);
 
-    const completed = await db.prepare('SELECT status, result_json FROM scans WHERE id = ?').get(scanId) as any;
-
-    let parsedResult = undefined;
-    if (completed?.result_json) {
-      try {
-        const firstBytes = atob(completed.result_json.slice(0, Math.ceil(2 * 4 / 3)));
-        const isGzip = firstBytes.charCodeAt(0) === 0x1f && firstBytes.charCodeAt(1) === 0x8b;
-        if (isGzip) {
-          parsedResult = JSON.parse(await decompressGzip(completed.result_json));
-        } else {
-          parsedResult = JSON.parse(completed.result_json);
-        }
-      } catch {}
-    }
-
     return NextResponse.json({
       scanId,
-      status: completed?.status === 'completed' ? 'completed' : 'queued',
-      result: parsedResult,
+      status: 'queued',
     });
   } catch (error: any) {
     // Only reaches here for truly unexpected errors (JSON parse, DB init, etc.)

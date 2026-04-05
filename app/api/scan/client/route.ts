@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, getRuntimeEnv, sendScanJob } from '@/lib/env';
-import { MOCK_SCAN_MODE, buildMockScanResult } from '@/lib/mock-scan';
+
 import { verifySubscriberToken, touchSubscriberToken } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
@@ -37,27 +37,17 @@ export async function POST(request: NextRequest) {
       VALUES (?, ?, ?, 'pending', ?)
     `).run(scanId, client.url, subscriber.email, subscriber.subscriber_id);
 
-    if (env?.SCAN_QUEUE) {
-      await sendScanJob({ scanId, url: client.url, email: subscriber.email, trigger: 'subscriber' }, env);
-    } else if (MOCK_SCAN_MODE) {
-      await db.prepare(`UPDATE scans SET status = 'processing' WHERE id = ?`).run(scanId);
-      const result = buildMockScanResult(client.url);
-      const { compressGzip } = await import('@/lib/env');
-      const resultJson = await compressGzip(JSON.stringify(result));
-      await db.prepare(`
-        UPDATE scans
-        SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-        WHERE id = ?
-      `).run(resultJson, scanId);
-    } else {
+    if (!env?.SCAN_QUEUE) {
       await db.prepare(`UPDATE scans SET status = 'failed' WHERE id = ?`).run(scanId);
       return NextResponse.json({ error: 'Scan queue is not configured' }, { status: 500 });
     }
 
+    await sendScanJob({ scanId, url: client.url, email: subscriber.email, trigger: 'subscriber' }, env);
+
     return NextResponse.json({
       scanId,
       clientId,
-      status: env?.SCAN_QUEUE ? 'queued' : 'completed',
+      status: 'queued',
       message: 'Scan started for client. The report will appear in client history once ready.',
     });
   } catch (error: any) {
@@ -65,4 +55,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+
+
 

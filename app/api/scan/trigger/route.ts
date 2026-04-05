@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb, compressGzip, getRuntimeEnv, sendScanJob, parseResultJson } from '@/lib/env';
-import { MOCK_SCAN_MODE, buildMockScanResult } from '@/lib/mock-scan';
+import { getDb, getRuntimeEnv, sendScanJob, parseResultJson } from '@/lib/env';
 
 export async function POST(request: NextRequest) {
   let scanId: string | undefined;
@@ -49,29 +48,13 @@ export async function POST(request: NextRequest) {
     VALUES (?, ?, 'pending', ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
   `).run(scanId, url, email || null, sessionId || null);
 
-  if (env?.SCAN_QUEUE) {
-    await sendScanJob({ scanId, url, email, trigger: 'stripe' }, env);
-    return NextResponse.json({ status: 'queued', scanId });
-  }
-
-  try {
-    if (MOCK_SCAN_MODE) {
-      await db.prepare(`UPDATE scans SET status = 'processing' WHERE id = ?`).run(scanId);
-      const result = buildMockScanResult(url);
-      const resultJson = await compressGzip(JSON.stringify(result));
-      await db.prepare(`
-        UPDATE scans
-        SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), stripe_session_id = COALESCE(?, stripe_session_id)
-        WHERE id = ?
-      `).run(resultJson, sessionId || null, scanId);
-      return NextResponse.json({ status: 'completed', result, scanId });
-    }
-
+  if (!env?.SCAN_QUEUE) {
     await db.prepare(`UPDATE scans SET status = 'failed' WHERE id = ?`).run(scanId);
     return NextResponse.json({ error: 'Scan queue is not configured' }, { status: 500 });
-  } catch (err: any) {
-    console.error(`Scan ${scanId} failed:`, err.message);
-    await db.prepare(`UPDATE scans SET status = 'failed' WHERE id = ?`).run(scanId);
-    return NextResponse.json({ error: err.message || 'Scan failed' }, { status: 500 });
   }
+
+  await sendScanJob({ scanId, url, email, trigger: 'stripe' }, env);
+  return NextResponse.json({ status: 'queued', scanId });
 }
+
+
