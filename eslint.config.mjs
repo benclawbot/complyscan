@@ -4,7 +4,7 @@ import nextPlugin from '@next/eslint-plugin-next';
 
 export default [
   {
-    ignores: ['.next/**', '.open-next/**', 'node_modules/**', 'reports/**', 'data/**', 'scripts/**', 'test-results/**', 'playwright-report/**'],
+    ignores: ['.next/**', '.open-next/**', '.wrangler/**', 'node_modules/**', 'reports/**', 'data/**', 'scripts/**', 'test-results/**', 'playwright-report/**'],
   },
   {
     files: ['**/*.{ts,tsx,js,jsx}'],
@@ -27,3 +27,4 @@ export default [
     },
   },
 ];
+

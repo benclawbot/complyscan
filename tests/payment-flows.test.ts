@@ -2,7 +2,7 @@
  * Payment flow tests for ComplyScan
  * Tests: checkout session creation, webhook handling, subscriber flows
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mockDb } from './setup';
 
 // We need to test the actual route handlers
@@ -10,29 +10,6 @@ import { mockDb } from './setup';
 // we test the HTTP layer using supertest-style requests
 
 // ----- TEST HELPERS -----
-
-function createMockRequest(body: any, headers: Record<string, string> = {}) {
-  return {
-    json: () => Promise.resolve(body),
-    text: () => Promise.resolve(typeof body === 'string' ? body : JSON.stringify(body)),
-    headers: new Map(Object.entries(headers)),
-    get(header: string) {
-      return headers[header.toLowerCase()] || null;
-    },
-  } as any;
-}
-
-function createMockNextResponse() {
-  const responses: any[] = [];
-  const responseClass = {
-    json: (data: any, init?: any) => {
-      const r = { data, status: init?.status || 200, ok: true };
-      responses.push(r);
-      return r;
-    },
-  };
-  return { responses, responseClass };
-}
 
 // ----- STRIPE CHECKOUT TESTS -----
 
@@ -61,7 +38,6 @@ describe('POST /api/stripe/checkout', () => {
   it('creates a one-time checkout session with correct params', async () => {
     // Test that the checkout session params are built correctly
     const url = 'https://example.com';
-    const email = 'test@test.com';
     const scanId = 'scan-123';
     const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
 
@@ -81,7 +57,6 @@ describe('POST /api/stripe/checkout', () => {
 
   it('creates a subscription checkout session with correct params', async () => {
     const url = 'https://example.com';
-    const email = 'test@test.com';
     const scanId = 'scan-123';
     const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
 
@@ -158,8 +133,6 @@ describe('POST /api/login', () => {
   it('returns subscriber dashboard URL for active subscriber', () => {
     const email = 'subscriber@test.com';
     const token = 'token-uuid-123';
-    const dashboardUrl = `https://complyscan2.vercel.app/dashboard?token=${token}`;
-
     // Simulate finding an active subscriber
     const subscriber = { email, token, status: 'active' };
     const found = subscriber?.status === 'active';
@@ -169,7 +142,6 @@ describe('POST /api/login', () => {
   });
 
   it('returns 404 for non-existent subscriber', () => {
-    const email = 'notasubscriber@test.com';
     const subscriber = null;
     expect(subscriber).toBeNull();
   });
@@ -183,8 +155,8 @@ describe('GET /api/dashboard', () => {
   });
 
   it('returns 401 for missing token', () => {
-    const token = '';
-    expect(token).toBe('');
+    const _token = '';
+    expect(_token).toBe('');
   });
 
   it('returns 401 for invalid token', () => {
@@ -194,7 +166,6 @@ describe('GET /api/dashboard', () => {
   });
 
   it('returns subscriber data for valid token', () => {
-    const token = 'valid-token-uuid';
     const subscriber = {
       id: 'sub_123',
       email: 'test@test.com',
@@ -208,7 +179,6 @@ describe('GET /api/dashboard', () => {
   });
 
   it('returns 403 for cancelled subscriber', () => {
-    const token = 'cancelled-token';
     const subscriber = { status: 'cancelled' };
     expect(subscriber.status).toBe('cancelled');
   });
@@ -295,7 +265,6 @@ describe('Database operations', () => {
   });
 
   it('updates scan status on checkout.session.completed', () => {
-    const scanId = 'scan-123';
     const sessionId = 'cs_test';
     const email = 'test@test.com';
 
@@ -325,3 +294,13 @@ describe('Database operations', () => {
     expect(mockDb.prepare).toHaveBeenCalled();
   });
 });
+
+
+
+
+
+
+
+
+
+

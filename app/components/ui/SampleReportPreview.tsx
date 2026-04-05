@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Shield, AlertTriangle, CheckCircle, ChevronRight } from "lucide-react";
+import { AlertTriangle, CheckCircle, ChevronRight } from "lucide-react";
 
 export function SampleReportPreview() {
   const [expanded, setExpanded] = useState(false);

@@ -2,7 +2,7 @@
  * Payment E2E tests using Playwright
  * Run with: npx vitest run tests/payment-e2e.test.ts
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { chromium } from 'playwright';
 
 const BASE_URL = 'https://complyscan2.vercel.app';
@@ -87,7 +87,7 @@ describe('Payment Flow E2E', () => {
     const page = await browser.newPage();
 
     // Should redirect or show error
-    const response = await page.goto(`${BASE_URL}/dashboard`, { timeout: 15000 });
+    await page.goto(`${BASE_URL}/dashboard`, { timeout: 15000 });
     // Dashboard without token should not show scan form
     const url = page.url();
     expect(url).not.toContain('token=');

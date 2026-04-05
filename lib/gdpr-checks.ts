@@ -106,7 +106,6 @@ export function runRuleBasedChecks(crawlResult: any): GdprCheck[] {
   });
 
   // 2. Cookie Policy Page (separate from Privacy Policy)
-  const privacyHtml = crawlResult.privacyPolicyHtml || '';
   const cookiePageExists = crawlResult.hasCookiePolicyPage === true;
   checks.push({
     id: 'cookie_policy_page',

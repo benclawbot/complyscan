@@ -3,7 +3,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb, sendScanJob, compressGzip } from '@/lib/env';
 import { MOCK_SCAN_MODE, buildMockScanResult } from '@/lib/mock-scan';
 import { getBearerToken, verifySubscriberToken, touchSubscriberToken } from '@/lib/auth';
-import { generateReportHtml } from '@/lib/report';
 
 async function getSubscriberFromRequest(request: NextRequest, explicitToken?: string) {
   const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;

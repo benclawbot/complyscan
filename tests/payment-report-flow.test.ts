@@ -35,7 +35,7 @@ async function waitForDevServer(timeoutMs = STARTUP_TIMEOUT_MS): Promise<void> {
     try {
       const res = await fetch(`${DEV_SERVER_URL}/`, { signal: AbortSignal.timeout(3_000) });
       if (res.ok || res.status === 200) return;
-    } catch (_) { /* not ready yet */ }
+    } catch { /* not ready yet */ }
     await new Promise(r => setTimeout(r, 2_000));
   }
   throw new Error(`Dev server at ${DEV_SERVER_URL} did not start within ${timeoutMs}ms`);
@@ -101,7 +101,7 @@ async function waitForReportInIframe(page: Page, scanId: string): Promise<void> 
             const data = await r.json();
             if (data.reportHtml) return true;
           }
-        } catch (_) { /* ignore */ }
+        } catch { /* ignore */ }
         await new Promise(r => setTimeout(r, opts.pollInterval));
       }
       return false;

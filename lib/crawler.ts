@@ -1,7 +1,5 @@
 import 'server-only';
 import puppeteer, { Browser } from 'puppeteer-core';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const chromium = require('@sparticuz/chromium-min') as any;
 
 // Use @sparticuz/chromium-min for serverless (pre-packaged binary), fallback to system chrome locally
 // Cloudflare Pages Workers runtime — no Chrome installed, must use Browserless
@@ -117,7 +115,7 @@ async function fetchPrivacyPolicyHtml(privacyPolicyUrl: string | null, baseUrl: 
       const text = await resp.text();
       return text.slice(0, 200000); // cap at 200KB
     }
-  } catch (_) { /* non-fatal */ }
+  } catch { /* non-fatal */ }
   return null;
 }
 
@@ -132,15 +130,6 @@ function analysePrivacyPolicyHtml(html: string): Partial<CrawlResult> {
   );
 
   // Third-party embeds in the main page HTML (not privacy policy)
-  const embedPatterns: [RegExp, string][] = [
-    [/<iframe[^>]+src=["']([^"']*(?:youtube\.com|youtu\.be)[^"']*)["']/gi, 'YouTube embed'],
-    [/<iframe[^>]+src=["']([^"']*vimeo\.com[^"']*)["']/gi, 'Vimeo embed'],
-    [/<blockquote[^>]+class=["'][^"']*(?:twitter|tweet)[^"']*["']/gi, 'Twitter embed'],
-    [/<iframe[^>]+src=["']([^"']*maps\.google\.com[^"']*)["']/gi, 'Google Maps embed'],
-    [/<script[^>]+src=["']([^"']*platform\.twitter\.com[^"']*)["']/gi, 'Twitter widget'],
-    [/<iframe[^>]+src=["']([^"']*instagram\.com[^"']*)["']/gi, 'Instagram embed'],
-  ];
-
   // Data processors to check for
   const knownProcessors = [
     'google analytics', 'google tag manager', 'facebook', 'meta', 'hotjar',
@@ -424,7 +413,7 @@ async function crawlWithBrowserless(url: string): Promise<CrawlResult> {
           privacyPolicyHtml = (await ppResp.text()).slice(0, 200000);
         }
       }
-    } catch (_) { /* non-fatal */ }
+    } catch { /* non-fatal */ }
   }
 
   const policyAnalysis = privacyPolicyHtml ? analysePrivacyPolicyHtml(privacyPolicyHtml) : {};
@@ -650,13 +639,13 @@ async function crawlWithFetch(url: string): Promise<CrawlResult> {
     // Last resort: try curl (system binary — may bypass serverless network restrictions)
     let curlHtml: string | null = null;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const { execSync } = require('child_process') as { execSync: (cmd: string, opts: any) => string };
       const curlTimeout = Math.floor(timeoutMs / 1000);
       const curlCmd = `curl -s -L --max-time ${curlTimeout} -A "GDPRBot/1.0" --fail "${url}" 2>&1`;
       const result = execSync(curlCmd, { timeout: timeoutMs + 2000, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
       if (result && result.length > 100) curlHtml = result as string;
-    } catch (_) { /* curl also failed */ }
+    } catch { /* curl also failed */ }
     if (curlHtml) {
       // curl succeeded — manually parse the HTML
       const html = curlHtml;
@@ -940,3 +929,9 @@ export async function crawlPage(url: string): Promise<CrawlResult> {
     }
   }
 }
+
+
+
+
+
+

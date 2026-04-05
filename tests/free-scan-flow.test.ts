@@ -33,7 +33,7 @@ function createMockDb() {
       if (sql.includes('SELECT') && sql.includes('scans')) {
         return {
           get: (id: string) => scans.find(s => s.id === id) || null,
-          all: (...args: any[]) => scans,
+          all: () => scans,
         };
       }
       if (sql.includes('SELECT') && sql.includes('users')) {
@@ -213,7 +213,6 @@ describe('Claim Scan (Account Creation) API', () => {
     });
 
     it('hashes password in salt:hash format', () => {
-      const password = 'testpassword';
       const salt = 'abc123';
       // Simple mock hash
       const hash = salt + ':' + 'mockhash';
@@ -257,7 +256,7 @@ describe('Claim Scan (Account Creation) API', () => {
         password_hash: `${correctSalt}:${correctHash}`,
       });
 
-      const [salt, storedHash] = mockDb.users[0].password_hash.split(':');
+      const [, storedHash] = mockDb.users[0].password_hash.split(':');
       const inputHash = 'wronghash';
       expect(inputHash !== storedHash).toBe(true);
     });
@@ -274,7 +273,7 @@ describe('Claim Scan (Account Creation) API', () => {
         password_hash: `${correctSalt}:${correctHash}`,
       });
 
-      const [salt, storedHash] = mockDb.users[0].password_hash.split(':');
+      const [, storedHash] = mockDb.users[0].password_hash.split(':');
       expect(correctHash === storedHash).toBe(true);
     });
   });
@@ -379,3 +378,6 @@ describe('Pricing Tiers', () => {
     expect(getPriceId('single')).toBe('price_single');
   });
 });
+
+
+

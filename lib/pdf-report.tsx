@@ -4,7 +4,6 @@ import {
   Text,
   View,
   StyleSheet,
-  Font,
   pdf,
   Svg,
   Circle,
@@ -14,7 +13,6 @@ import {
 import React from 'react';
 
 // ── Fonts ────────────────────────────────────────────────────────────────────
-const FONT = 'Helvetica';
 const FONT_BOLD = 'Helvetica-Bold';
 const FONT_OBLIQUE = 'Helvetica-Oblique';
 
@@ -98,42 +96,6 @@ function IconClipboard({ size = 11, color = C.blue }: { size?: number; color?: s
   );
 }
 
-function IconCheckbox({ checked = false, color = C.green }: { checked?: boolean; color?: string }) {
-  return (
-    <Svg viewBox="0 0 24 24" width={14} height={14}>
-      <Rect
-        x="2" y="2" width="20" height="20" rx="3"
-        stroke={checked ? color : C.muted}
-        strokeWidth="2"
-        fill={checked ? color : 'none'}
-      />
-      {checked && (
-        <Path
-          d="M7 12l3.5 3.5 6.5-7"
-          stroke={C.white}
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-        />
-      )}
-    </Svg>
-  );
-}
-
-function IconNum({ n, color = C.blue }: { n: number; color?: string }) {
-  return (
-    <Svg viewBox="0 0 24 24" width={16} height={16}>
-      <Circle cx="12" cy="12" r="11" fill={color} />
-      <Text
-        x="12" y="16"
-        style={{ fontSize: 9, fontFamily: FONT_BOLD, fill: C.white, textAnchor: 'middle' }}
-      >
-        {String(n).padStart(2, '0')}
-      </Text>
-    </Svg>
-  );
-}
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const S = StyleSheet.create({
@@ -228,12 +190,6 @@ function sevColor(s: string): string {
   if (s === 'critical') return C.red;
   if (s === 'warning') return C.amber;
   return C.blue;
-}
-
-function sevBg(s: string): string {
-  if (s === 'critical') return C.redBg;
-  if (s === 'warning') return C.amberBg;
-  return '#eff6ff';
 }
 
 function artLabel(art: string | undefined): string {

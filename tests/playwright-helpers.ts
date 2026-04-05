@@ -8,7 +8,7 @@ export async function cleanUpTestScans(email: string): Promise<void> {
     await fetch(`${BASE_URL}/api/test/cleanup?email=${encodeURIComponent(email)}`, {
       method: 'DELETE',
     }).catch(() => { /* cleanup is best-effort */ });
-  } catch (_) {}
+  } catch {}
 }
 
 export async function cleanUpTestSubscribers(email: string): Promise<void> {
@@ -16,7 +16,7 @@ export async function cleanUpTestSubscribers(email: string): Promise<void> {
     await fetch(`${BASE_URL}/api/test/cleanup-subscriber?email=${encodeURIComponent(email)}`, {
       method: 'DELETE',
     }).catch(() => {});
-  } catch (_) {}
+  } catch {}
 }
 
 export async function waitForUrl(url: string, options: {
@@ -30,8 +30,9 @@ export async function waitForUrl(url: string, options: {
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
       if (res.status === expectedStatus) return;
-    } catch (_) {}
+    } catch {}
     await new Promise(r => setTimeout(r, interval));
   }
   throw new Error(`URL ${url} did not return ${expectedStatus} within ${timeout}ms`);
 }
+

@@ -33,7 +33,6 @@ export interface ScanResult {
 }
 
 const ACCENT = '#2563eb';
-const ACCENT_LIGHT = '#dbeafe';
 const SUCCESS = '#16a34a';
 const SUCCESS_BG = '#f0fdf4';
 const WARN = '#d97706';

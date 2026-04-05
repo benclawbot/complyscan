@@ -4,12 +4,12 @@
 // @deprecated
 const DB_PATH = process.env.DATABASE_PATH || (process.env.CF_PAGES ? '/tmp/complyscan.db' : './data/complyscan.db');
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let db: any;
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+ 
 function loadDb(): any {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+   
   const Database = require('better-sqlite3');
   return new Database(DB_PATH);
 }

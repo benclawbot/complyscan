@@ -237,7 +237,7 @@ Be specific. Generic advice is not helpful. Focus on actionable fixes.`;
       throw new Error('Invalid AI response shape');
     }
     return parsed;
-  } catch (err) {
+  } catch {
     console.error('[Worker] AI parse failed, using fallback:', content.substring(0, 200));
     return {
       summary: 'AI analysis unavailable. Please try again.',

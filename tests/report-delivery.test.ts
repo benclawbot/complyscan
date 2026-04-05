@@ -5,7 +5,7 @@
  * Run with: npx vitest run tests/report-delivery.test.ts
  * Requires: Local dev server running on port 3000 (npm start)
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { v4 as uuidv4 } from 'uuid';
 
 const BASE_URL = 'http://localhost:3000';
@@ -14,7 +14,6 @@ const BASE_URL = 'http://localhost:3000';
 const TEST_URL = 'https://example.com';
 
 describe('Report Delivery API', () => {
-  let scanId: string;
   let scanIdForReport: string;
 
   // Create a completed scan in DB directly for report delivery testing

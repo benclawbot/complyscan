@@ -58,7 +58,7 @@ export async function deleteReport(scanId: string, env: Env): Promise<void> {
 export async function getSignedReportUrl(scanId: string, env: Env): Promise<string> {
   const key = `reports/${scanId}.pdf`;
   // createSignedUrl exists on R2Bucket at runtime but @cloudflare/workers-types is out of date
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const url = await (env.REPORTS_BUCKET as any).createSignedUrl({
     pathname: key,
     expires: 3600,

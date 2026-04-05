@@ -119,7 +119,7 @@ function initializeLocalSchema(db: any) {
 function createLocalSqliteClient(): DbClient {
   if (!localDb) {
     fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+     
     const Database = require('better-sqlite3');
     localDb = new Database(DB_PATH);
     localDb.pragma('journal_mode = DELETE');

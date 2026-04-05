@@ -6,7 +6,7 @@ interface RevealSectionProps {
   children: ReactNode;
   className?: string;
   delay?: 0 | 1 | 2 | 3 | 4;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   as?: any;
 }
 
@@ -16,7 +16,7 @@ export function RevealSection({
   delay = 0,
   as: Tag = "div",
 }: RevealSectionProps) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const ref = useRef<any>(null);
 
   useEffect(() => {
