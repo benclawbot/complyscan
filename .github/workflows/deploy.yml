@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
+      - name: Build Next.js
         run: npm run build
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -34,7 +34,7 @@ jobs:
         run: rm -rf .next/cache
 
       - name: Convert to Cloudflare Worker
-        run: npx @opennextjs/cloudflare build
+        run: npx @opennextjs/cloudflare build --skipNextBuild
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
