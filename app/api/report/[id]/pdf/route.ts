@@ -34,7 +34,7 @@ async function isPaidSessionValid(sessionId: string | null, scanId: string) {
   }
 }
 
-async function generateFromResult(result: any, scanId: string, format: string, env: any) {
+async function generateFromResult(result: any, scanId: string, format: string, _env: any) {
   const url = result?.crawl?.url || result?.url || '';
 
   if (format === 'html') {
@@ -110,3 +110,4 @@ export async function GET(
 
   return generateFromResult(data.result, scanId, 'pdf', env);
 }
+

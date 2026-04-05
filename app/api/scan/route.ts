@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { getDb, parseResultJson, compressGzip, decompressGzip } from '@/lib/env';
+import { getDb, compressGzip, decompressGzip } from '@/lib/env';
 import { crawlPage } from '@/lib/crawler';
 import { runRuleBasedChecks } from '@/lib/gdpr-checks';
 import { analyzeWithAI } from '@/lib/ai-analysis';
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }, env: any) {
+export async function POST(request: NextRequest, { params: _params }: { params: Promise<{ id: string }> }, env: any) {
   let scanId: string | undefined;
   let db: ReturnType<typeof getDb> | undefined;
 
@@ -133,3 +133,5 @@ async function processScanAsync(scanId: string, url: string, env: any) {
     WHERE id = ?
   `).run(resultJson, scanId);
 }
+
+

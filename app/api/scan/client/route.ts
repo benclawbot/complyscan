@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, compressGzip } from '@/lib/env';
 import { MOCK_SCAN_MODE, buildMockScanResult } from '@/lib/mock-scan';
-import { getBearerToken, verifySubscriberToken, touchSubscriberToken } from '@/lib/auth';
+import { verifySubscriberToken, touchSubscriberToken } from '@/lib/auth';
 import { generateReportHtml } from '@/lib/report';
 
 export async function POST(request: NextRequest) {
@@ -119,3 +119,4 @@ async function runClientScan(scanId: string, url: string, email: string | null, 
     });
   }
 }
+

@@ -38,7 +38,7 @@ export default {
 };
 
 async function processScanJob(job: ScanJob, env: Env): Promise<void> {
-  const { scanId, url, email } = job;
+  const { scanId, url } = job;
   console.log(`Processing scan ${scanId} for ${url}`);
 
   // Mark as processing

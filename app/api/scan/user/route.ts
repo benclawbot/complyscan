@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb, compressGzip } from '@/lib/env';
+import { getDb } from '@/lib/env';
 import { v4 as uuidv4 } from 'uuid';
 
 async function verifySession(request: NextRequest, db: ReturnType<typeof getDb>) {
@@ -15,7 +15,7 @@ async function verifySession(request: NextRequest, db: ReturnType<typeof getDb>)
   return session || null;
 }
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }, env: any) {
+export async function GET(request: NextRequest, { params: _params }: { params: Promise<{ id: string }> }, env: any) {
   const db = getDb(env);
   const session = await verifySession(request, db);
   if (!session) {
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   return NextResponse.json({ scans });
 }
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }, env: any) {
+export async function POST(request: NextRequest, { params: _params }: { params: Promise<{ id: string }> }, env: any) {
   const db = getDb(env);
   const session = await verifySession(request, db);
   if (!session) {
@@ -97,3 +97,6 @@ async function triggerScan(scanId: string, url: string, env: any) {
     await db.prepare(`UPDATE scans SET status = 'failed' WHERE id = ?`).run(scanId);
   }
 }
+
+
+

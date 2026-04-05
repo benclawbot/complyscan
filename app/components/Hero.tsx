@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ShieldCheck, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { LiveScanMeter } from "./ui/LiveScanMeter";
 import { AnimatedCounter } from "./ui/AnimatedCounter";
 
@@ -203,3 +203,4 @@ export function Hero() {
     </section>
   );
 }
+

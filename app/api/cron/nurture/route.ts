@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/env';
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }, env: any) {
+export async function GET(request: NextRequest, { params: _params }: { params: Promise<{ id: string }> }, env: any) {
   // Verify cron secret (Cloudflare Pages sets X-Cootie-Secret header for cron triggers)
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
@@ -57,3 +57,4 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     usersFound: users.length,
   });
 }
+

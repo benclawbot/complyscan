@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/env';
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }, env: any) {
+export async function POST(request: NextRequest, { params: _params }: { params: Promise<{ id: string }> }, env: any) {
   try {
     const body = await request.json() as { email?: string };
     const { email } = body;
@@ -45,3 +45,4 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
