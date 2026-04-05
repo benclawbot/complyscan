@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { getDb, decompressGzip, sendScanJob } from '@/lib/env';
+import { getDb, decompressGzip, getRuntimeEnv, sendScanJob } from '@/lib/env';
 
 export async function POST(request: NextRequest, { params: _params }: { params: Promise<{ id: string }> }, env: any) {
+  env = getRuntimeEnv(env);
   let scanId: string | undefined;
   let db: ReturnType<typeof getDb> | undefined;
 
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest, { params: _params }: { params: 
 
     return NextResponse.json({
       scanId,
-      status: completed?.status || 'pending',
+      status: completed?.status === 'completed' ? 'completed' : 'queued',
       result: parsedResult,
     });
   } catch (error: any) {
@@ -68,5 +69,6 @@ export async function POST(request: NextRequest, { params: _params }: { params: 
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }
+
 
 
