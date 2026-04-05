@@ -70,9 +70,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ scanId, status: 'queued', message: 'Scan queued.' });
     }
 
-    await db.prepare(`UPDATE scans SET status = 'processing' WHERE id = ?`).run(scanId);
-
     if (MOCK_SCAN_MODE) {
+      await db.prepare(`UPDATE scans SET status = 'processing' WHERE id = ?`).run(scanId);
       const result = buildMockScanResult(url);
       const resultJson = await compressGzip(JSON.stringify(result));
       await db.prepare(`
@@ -83,39 +82,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ scanId, status: 'completed', result, message: 'Scan complete.' });
     }
 
-    const { crawlPage } = await import('@/lib/crawler');
-    const { runRuleBasedChecks } = await import('@/lib/gdpr-checks');
-    const { analyzeWithAI } = await import('@/lib/ai-analysis');
-
-    const crawlResult = await crawlPage(url);
-    const ruleChecks = runRuleBasedChecks(crawlResult);
-    const aiResult = await analyzeWithAI(crawlResult, ruleChecks);
-
-    const result = {
-      crawl: crawlResult,
-      ruleChecks,
-      aiAnalysis: aiResult,
-      scannedAt: new Date().toISOString(),
-    };
-
-    const resultJson = await compressGzip(JSON.stringify(result));
-    await db.prepare(`
-      UPDATE scans
-      SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-      WHERE id = ?
-    `).run(resultJson, scanId);
-
-    if (subscriber.email && process.env.MAILJET_API_KEY && process.env.MAILJET_SECRET_KEY) {
-      const { sendReportEmail } = await import('@/lib/mailjet');
-      const reportHtml = generateReportHtml(url, result as any);
-      await sendReportEmail({
-        email: subscriber.email,
-        subject: `GDPR Compliance Report for ${url}`,
-        html: reportHtml,
-      });
-    }
-
-    return NextResponse.json({ scanId, status: 'completed', result, message: 'Scan complete.' });
+    await db.prepare(`UPDATE scans SET status = 'failed' WHERE id = ?`).run(scanId);
+    return NextResponse.json({ error: 'Scan queue is not configured' }, { status: 500 });
   } catch (error: any) {
     console.error('Subscriber scan error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

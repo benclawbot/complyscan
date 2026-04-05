@@ -54,10 +54,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ status: 'queued', scanId });
   }
 
-  await db.prepare(`UPDATE scans SET status = 'processing' WHERE id = ?`).run(scanId);
-
   try {
     if (MOCK_SCAN_MODE) {
+      await db.prepare(`UPDATE scans SET status = 'processing' WHERE id = ?`).run(scanId);
       const result = buildMockScanResult(url);
       const resultJson = await compressGzip(JSON.stringify(result));
       await db.prepare(`
@@ -68,38 +67,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: 'completed', result, scanId });
     }
 
-    const { crawlPage } = await import('@/lib/crawler');
-    const { runRuleBasedChecks } = await import('@/lib/gdpr-checks');
-    const { analyzeWithAI } = await import('@/lib/ai-analysis');
-
-    const crawlResult = await crawlPage(url);
-    const ruleChecks = runRuleBasedChecks(crawlResult);
-    const aiResult = await analyzeWithAI(crawlResult, ruleChecks);
-
-    const result = {
-      crawl: {
-        url,
-        title: crawlResult.title,
-        description: crawlResult.description,
-        h1s: crawlResult.h1s,
-        trackingScripts: crawlResult.trackingScripts,
-        formsCount: crawlResult.formsCount,
-        hasSSL: crawlResult.hasSSL,
-        statusCode: crawlResult.statusCode,
-      },
-      ruleChecks,
-      aiAnalysis: aiResult,
-      scannedAt: new Date().toISOString(),
-    };
-
-    const resultJson = await compressGzip(JSON.stringify(result));
-    await db.prepare(`
-      UPDATE scans
-      SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), stripe_session_id = COALESCE(?, stripe_session_id)
-      WHERE id = ?
-    `).run(resultJson, sessionId || null, scanId);
-
-    return NextResponse.json({ status: 'completed', result, scanId });
+    await db.prepare(`UPDATE scans SET status = 'failed' WHERE id = ?`).run(scanId);
+    return NextResponse.json({ error: 'Scan queue is not configured' }, { status: 500 });
   } catch (err: any) {
     console.error(`Scan ${scanId} failed:`, err.message);
     await db.prepare(`UPDATE scans SET status = 'failed' WHERE id = ?`).run(scanId);

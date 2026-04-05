@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
 import { getDb } from '@/lib/env';
+import { retrieveCheckoutSession } from '@/lib/stripe-api';
 
 const MOCK_STRIPE = process.env.MOCK_STRIPE === '1' || process.env.E2E_TEST_MODE === '1';
 
@@ -36,11 +36,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const stripe = new Stripe(stripeKey, {
-      apiVersion: '2025-02-24.acacia' as any,
-    });
-
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const session = await retrieveCheckoutSession(sessionId);
     const result: Record<string, any> = {
       mode: session.mode,
       scanId: session.metadata?.scanId || null,

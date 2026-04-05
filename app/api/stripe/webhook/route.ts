@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import { getDb } from '@/lib/env';
+import { retrieveSubscription, verifyStripeWebhookSignature } from '@/lib/stripe-api';
 
 export async function POST(request: NextRequest) {
   try {
     if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
       return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 });
     }
-
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2025-02-24.acacia' as any,
-    });
 
     const body = await request.text();
     const signature = request.headers.get('stripe-signature');
@@ -22,19 +18,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing signature or webhook secret' }, { status: 400 });
     }
 
-    let event: Stripe.Event;
-    try {
-      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-    } catch (err: any) {
-      return NextResponse.json({ error: 'Invalid signature', detail: err.message }, { status: 400 });
+    if (!verifyStripeWebhookSignature(body, signature, webhookSecret)) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
     }
+
+    const event = JSON.parse(body) as any;
 
     const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
     const db = getDb(env);
 
     switch (event.type) {
       case 'checkout.session.completed': {
-        const session = event.data.object as Stripe.Checkout.Session;
+        const session = event.data.object as any;
         const scanId = session.metadata?.scanId || uuidv4();
         const websiteUrl = session.metadata?.url || '';
         const customerEmail = session.customer_email || null;
@@ -60,7 +55,7 @@ export async function POST(request: NextRequest) {
           let periodEnd: string | null = null;
           let cancelAtPeriodEnd = false;
           try {
-            const subscription = await stripe.subscriptions.retrieve(String(session.subscription)) as any;
+            const subscription = await retrieveSubscription(String(session.subscription));
             periodEnd = subscription.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null;
             cancelAtPeriodEnd = Boolean(subscription.cancel_at_period_end);
           } catch {
@@ -95,7 +90,7 @@ export async function POST(request: NextRequest) {
       }
 
       case 'customer.subscription.updated': {
-        const subscription = event.data.object as Stripe.Subscription;
+        const subscription = event.data.object as any;
         const customerId = String(subscription.customer);
         const subAny = subscription as any;
         const periodEnd = subAny.current_period_end ? new Date(subAny.current_period_end * 1000).toISOString() : null;
@@ -121,12 +116,12 @@ export async function POST(request: NextRequest) {
       }
 
       case 'invoice.payment_succeeded': {
-        const invoice = event.data.object as Stripe.Invoice;
+        const invoice = event.data.object as any;
         const invoiceAny = invoice as any;
         const customerId = String(invoiceAny.customer || '');
         if (invoiceAny.subscription) {
           try {
-            const subscription = await stripe.subscriptions.retrieve(String(invoiceAny.subscription)) as any;
+            const subscription = await retrieveSubscription(String(invoiceAny.subscription));
             const periodEnd = subscription.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null;
             await db.prepare(`
               UPDATE subscribers
@@ -147,7 +142,7 @@ export async function POST(request: NextRequest) {
       }
 
       case 'customer.subscription.deleted': {
-        const subscription = event.data.object as Stripe.Subscription;
+        const subscription = event.data.object as any;
         const customerId = String(subscription.customer);
         const sub = await db.prepare('SELECT id FROM subscribers WHERE stripe_customer_id = ?').get(customerId) as any;
         if (sub) {
@@ -172,3 +167,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal error', detail: err.message }, { status: 500 });
   }
 }
+
+
+
+
+
+
+
+

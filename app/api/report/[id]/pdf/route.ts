@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, parseResultJson } from '@/lib/env';
 import { getBearerToken, verifySubscriberToken } from '@/lib/auth';
-import Stripe from 'stripe';
+import { retrieveCheckoutSession } from '@/lib/stripe-api';
 
 async function getScanWithResult(scanId: string, db: ReturnType<typeof getDb>) {
   const scan = await db.prepare('SELECT * FROM scans WHERE id = ?').get(scanId) as any;
@@ -26,8 +26,7 @@ async function isPaidSessionValid(sessionId: string | null, scanId: string) {
   if (!process.env.STRIPE_SECRET_KEY) return false;
 
   try {
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const session = await retrieveCheckoutSession(sessionId);
     return session.payment_status === 'paid' && session.metadata?.scanId === scanId;
   } catch {
     return false;

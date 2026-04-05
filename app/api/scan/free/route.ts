@@ -53,10 +53,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ scanId, status: 'queued' });
   }
 
-  await db.prepare(`UPDATE scans SET status = 'processing' WHERE id = ?`).run(scanId);
-
   try {
     if (MOCK_SCAN_MODE) {
+      await db.prepare(`UPDATE scans SET status = 'processing' WHERE id = ?`).run(scanId);
       const result = buildMockScanResult(url);
       const resultJson = await compressGzip(JSON.stringify(result));
       await db.prepare(
@@ -67,50 +66,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ scanId, status: 'completed', result });
     }
 
-    const { crawlPage } = await import('@/lib/crawler');
-    const { runRuleBasedChecks } = await import('@/lib/gdpr-checks');
-    const { analyzeWithAI } = await import('@/lib/ai-analysis');
-
-    const crawlResult = await crawlPage(url);
-    const ruleChecks = runRuleBasedChecks(crawlResult);
-    const aiResult = await analyzeWithAI(crawlResult, ruleChecks);
-
-    const result = {
-      crawl: {
-        title: crawlResult.title,
-        description: crawlResult.description,
-        url: crawlResult.url,
-        h1s: crawlResult.h1s,
-        trackingScripts: crawlResult.trackingScripts,
-        formsCount: crawlResult.formsCount,
-        hasSSL: crawlResult.hasSSL,
-        statusCode: crawlResult.statusCode,
-        hasPrivacyPolicy: crawlResult.hasPrivacyPolicy,
-        hasCookiePolicyPage: crawlResult.hasCookiePolicyPage,
-        hasCookieBanner: crawlResult.hasCookieBanner,
-        cookieBannerText: crawlResult.cookieBannerText,
-        privacyPolicyUrl: crawlResult.privacyPolicyUrl,
-        formInputsLabeled: crawlResult.formInputsLabeled,
-        totalFormInputs: crawlResult.totalFormInputs,
-        thirdPartyEmbeds: crawlResult.thirdPartyEmbeds,
-      },
-      ruleChecks,
-      aiAnalysis: aiResult,
-      scannedAt: new Date().toISOString(),
-    };
-
-    const resultJson = await compressGzip(JSON.stringify(result));
-    await db.prepare(
-      `UPDATE scans
-       SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-       WHERE id = ?`
-    ).run(resultJson, scanId);
-
-    import('@/lib/mailjet').then(({ subscribeToNurture }) => {
-      subscribeToNurture({ email, scanUrl: url }).catch(() => {});
-    });
-
-    return NextResponse.json({ scanId, status: 'completed', result });
+    await db.prepare(`UPDATE scans SET status = 'failed' WHERE id = ?`).run(scanId);
+    return NextResponse.json({ error: 'Scan queue is not configured' }, { status: 500 });
   } catch (err: any) {
     console.error(`Free scan ${scanId} failed:`, err.message);
     await db.prepare(`UPDATE scans SET status = 'failed' WHERE id = ?`).run(scanId);

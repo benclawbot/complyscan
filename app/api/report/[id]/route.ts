@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, parseResultJson } from '@/lib/env';
-import Stripe from 'stripe';
 import { generateReportHtml } from '@/lib/report';
+import { retrieveCheckoutSession } from '@/lib/stripe-api';
 
 async function getScanResult(db: ReturnType<typeof getDb>, scanId: string) {
   const scan = await db.prepare('SELECT * FROM scans WHERE id = ?').get(scanId) as any;
@@ -39,8 +39,7 @@ export async function GET(
 
   if (sessionId && process.env.STRIPE_SECRET_KEY) {
     try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      const session = await retrieveCheckoutSession(sessionId);
       const stripeScanId = session.metadata?.scanId;
       if (stripeScanId && stripeScanId === scanId) {
         const refreshed = await getScanResult(db, scanId);
