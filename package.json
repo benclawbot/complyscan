@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build && npx @opennextjs/cloudflare build --skipNextBuild && cp .open-next/worker.js .open-next/_worker.js",
+    "build": "next build && npx @opennextjs/cloudflare build --skipNextBuild && cp .open-next/worker.js .open-next/_worker.js && cp -r .open-next/assets/* .open-next/ && printf '{\n  \"version\": 1,\n  \"include\": [\"/*\"],\n  \"exclude\": [\n    \"/_next/static/*\",\n    \"/favicon.ico\",\n    \"/robots.txt\",\n    \"/sitemap.xml\",\n    \"/site.webmanifest\"\n  ]\n}\n' > .open-next/_routes.json",
     "start": "next start",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "test": "node ./node_modules/vitest/vitest.mjs run",
@@ -61,3 +61,4 @@
     "wrangler": "^4.80.0"
   }
 }
+
