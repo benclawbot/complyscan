@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { getDb, sendScanJob } from '@/lib/env';
+import { getDb, getRuntimeEnv, sendScanJob } from '@/lib/env';
 import { MOCK_SCAN_MODE, buildMockScanResult } from '@/lib/mock-scan';
 import { verifySubscriberToken, touchSubscriberToken } from '@/lib/auth';
 
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Client ID and token are required' }, { status: 400 });
     }
 
-    const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
+    const env: any = getRuntimeEnv((request as any).env ?? (globalThis as any).__env ?? undefined);
     const db = getDb(env);
     const subscriber = await verifySubscriberToken(db, explicitToken, 'agency');
     if (!subscriber) {

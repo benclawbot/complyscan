@@ -1,9 +1,9 @@
 import 'server-only';
 import puppeteer, { Browser } from 'puppeteer-core';
 
-// Use @sparticuz/chromium-min for serverless (pre-packaged binary), fallback to system chrome locally
-// Cloudflare Pages Workers runtime — no Chrome installed, must use Browserless
-const IS_CLOUDFLARE_PAGES = !!process.env.CF_PAGES;
+// Edge/Workers runtimes cannot rely on launching a local browser binary.
+// Detect both Cloudflare Pages and standalone Workers so we prefer fetch/browserless paths there.
+const IS_EDGE_RUNTIME = !!process.env.CF_PAGES || typeof (globalThis as any).WebSocketPair !== 'undefined';
 
 export interface CrawlResult {
   url: string;
@@ -278,7 +278,7 @@ function analysePrivacyPolicyHtml(html: string): Partial<CrawlResult> {
 async function crawlWithBrowser(url: string): Promise<CrawlResult> {
   // On Cloudflare Pages Workers: no Chrome installed, must use Browserless
   // Locally: use Puppeteer with system Chrome
-  if (IS_CLOUDFLARE_PAGES) {
+  if (IS_EDGE_RUNTIME) {
     return await crawlWithBrowserless(url);
   } else {
     return await crawlWithPuppeteerLocal(url);
@@ -905,7 +905,7 @@ async function crawlWithFetch(url: string): Promise<CrawlResult> {
 export async function crawlPage(url: string): Promise<CrawlResult> {
   // On Cloudflare Pages Workers: try fetch first (may bypass some network restrictions), then Browserless.
   // curl fallback inside crawlWithFetch can bypass Workers fetch limitations.
-  if (IS_CLOUDFLARE_PAGES) {
+  if (IS_EDGE_RUNTIME) {
     try {
       return await crawlWithFetch(url);
     } catch (fetchError: any) {
@@ -929,6 +929,8 @@ export async function crawlPage(url: string): Promise<CrawlResult> {
     }
   }
 }
+
+
 
 
 

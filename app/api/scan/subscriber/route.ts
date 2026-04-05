@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { getDb, sendScanJob, compressGzip } from '@/lib/env';
+import { getDb, getRuntimeEnv, sendScanJob, compressGzip } from '@/lib/env';
 import { MOCK_SCAN_MODE, buildMockScanResult } from '@/lib/mock-scan';
 import { getBearerToken, verifySubscriberToken, touchSubscriberToken } from '@/lib/auth';
 
 async function getSubscriberFromRequest(request: NextRequest, explicitToken?: string) {
-  const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
+  const env: any = getRuntimeEnv((request as any).env ?? (globalThis as any).__env ?? undefined);
   const db = getDb(env);
   const token = explicitToken || getBearerToken(request);
   if (!token) return { db, token: null, subscriber: null };
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       VALUES (?, ?, ?, 'pending', ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
     `).run(scanId, url, subscriber.email, subscriber.subscriber_id);
 
-    const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
+    const env: any = getRuntimeEnv((request as any).env ?? (globalThis as any).__env ?? undefined);
     if (env?.SCAN_QUEUE) {
       await sendScanJob({ scanId, url, email: subscriber.email, trigger: 'subscriber' }, env);
       return NextResponse.json({ scanId, status: 'queued', message: 'Scan queued.' });
@@ -88,3 +88,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+

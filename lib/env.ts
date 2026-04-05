@@ -23,6 +23,15 @@ const DB_PATH = process.env.DATABASE_PATH || (process.env.CF_PAGES ? '/tmp/compl
 
 let localDb: any;
 
+function getCloudflareContextEnv(): any {
+  const context = (globalThis as any)[Symbol.for('__cloudflare-context__')];
+  return context?.env;
+}
+
+export function getRuntimeEnv(env?: any): any {
+  return env ?? (globalThis as any).__env ?? getCloudflareContextEnv() ?? undefined;
+}
+
 function ensureLocalColumn(db: any, table: string, column: string, ddl: string) {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
   if (!cols.some((c) => c.name === column)) {
@@ -182,8 +191,10 @@ function createD1Client(db: D1Database): DbClient {
 }
 
 export function getDb(env?: any): DbClient {
-  if (env?.DB) {
-    return createD1Client(env.DB as D1Database);
+  const runtimeEnv = getRuntimeEnv(env);
+
+  if (runtimeEnv?.DB) {
+    return createD1Client(runtimeEnv.DB as D1Database);
   }
 
   if (typeof process !== 'undefined') {
@@ -251,9 +262,10 @@ export async function parseResultJson(rawJson: string): Promise<any | null> {
 }
 
 export async function storeReport(scanId: string, pdfData: ArrayBuffer, env?: any): Promise<string | null> {
-  if (!env?.REPORTS_BUCKET) return null;
+  const runtimeEnv = getRuntimeEnv(env);
+  if (!runtimeEnv?.REPORTS_BUCKET) return null;
   const key = `reports/${scanId}.pdf`;
-  await env.REPORTS_BUCKET.put(key, pdfData, {
+  await runtimeEnv.REPORTS_BUCKET.put(key, pdfData, {
     httpMetadata: { contentType: 'application/pdf' },
     customMetadata: { scanId, storedAt: new Date().toISOString() },
   });
@@ -261,12 +273,14 @@ export async function storeReport(scanId: string, pdfData: ArrayBuffer, env?: an
 }
 
 export async function getSignedReportUrl(scanId: string, env?: any): Promise<string | null> {
-  if (!env?.REPORTS_BUCKET) return null;
+  const runtimeEnv = getRuntimeEnv(env);
+  if (!runtimeEnv?.REPORTS_BUCKET) return null;
   const key = `reports/${scanId}.pdf`;
-  return env.REPORTS_BUCKET.createSignedUrl({ pathname: key, expires: 3600 });
+  return runtimeEnv.REPORTS_BUCKET.createSignedUrl({ pathname: key, expires: 3600 });
 }
 
 export async function sendScanJob(job: { scanId: string; url: string; email?: string; trigger: string }, env?: any): Promise<void> {
-  if (!env?.SCAN_QUEUE) return;
-  await env.SCAN_QUEUE.send(job);
+  const runtimeEnv = getRuntimeEnv(env);
+  if (!runtimeEnv?.SCAN_QUEUE) return;
+  await runtimeEnv.SCAN_QUEUE.send(job);
 }

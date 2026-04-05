@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { getDb, compressGzip, sendScanJob } from '@/lib/env';
+import { getDb, compressGzip, getRuntimeEnv, sendScanJob } from '@/lib/env';
 import { MOCK_SCAN_MODE, buildMockScanResult } from '@/lib/mock-scan';
 
 const FREE_SCAN_LIMIT = 3;
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Email is required for free scans' }, { status: 400 });
   }
 
-  const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
+  const env: any = getRuntimeEnv((request as any).env ?? (globalThis as any).__env ?? undefined);
   const db = getDb(env);
 
   const count = await getMonthlyScanCount(db, email);

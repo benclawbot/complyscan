@@ -1,17 +1,6 @@
 /**
  * Cloudflare Queue Worker — scan processor
- *
- * Consumes jobs from the `compliance-checker-scan-queue` queue, runs the
- * crawl+analysis pipeline, and writes results back to D1.
- *
- * Deploy:
- *   cd workers/scan-processor
- *   npx wrangler deploy --name compliance-checker-scan-processor
- *
- * Required wrangler.toml bindings (workers/scan-processor/wrangler.toml):
- *   - D1 database (DB)
- *   - Queue consumer (SCAN_QUEUE)
- *   - Workers AI (AI) for LLM analysis
+ * Self-contained worker implementation for queue-driven scans.
  */
 
 interface ScanJob {
@@ -25,15 +14,72 @@ interface Env {
   DB: D1Database;
   SCAN_QUEUE: Queue<ScanJob>;
   AI: Ai;
-  MAILJET_API_KEY: string;
-  MAILJET_SECRET_KEY: string;
+  MAILJET_API_KEY?: string;
+  MAILJET_SECRET_KEY?: string;
 }
 
-// ── Entry point ──────────────────────────────────────────────────────────────
+interface CrawlResult {
+  url: string;
+  title: string;
+  description: string;
+  h1s: string[];
+  hasPrivacyPolicy: boolean;
+  privacyPolicyUrl: string | null;
+  privacyPolicyHtml: string | null;
+  hasCookieBanner: boolean;
+  cookieBannerText: string | null;
+  trackingScripts: string[];
+  formsCount: number;
+  formInputsLabeled: number;
+  totalFormInputs: number;
+  hasSSL: boolean;
+  screenshots: string[];
+  html: string;
+  statusCode: number;
+  securityHeaders: Record<string, string>;
+  hasCookiePolicyPage: boolean;
+  thirdPartyEmbeds: string[];
+  mixedContent: boolean;
+  marketingOptinStatus: 'present_not_prechecked' | 'pre_checked' | 'missing' | 'no_forms';
+  processorDisclosure: boolean;
+  processorsFound: string[];
+  hasInternationalTransferDisclosure: boolean;
+  hasDataRetentionDisclosure: boolean;
+  retentionDetails: string | null;
+  userRightsMechanism: boolean;
+  userRightsFound: string[];
+  dpoContact: string | null;
+  supervisoryAuthority: string | null;
+  ageRestriction: string | null;
+  hasAutomatedDecisionMakingDisclosure: boolean;
+  hasConsentWithdrawalMechanism: boolean;
+}
+
+interface GdprCheck {
+  id: string;
+  name: string;
+  description: string;
+  severity: 'critical' | 'warning' | 'info';
+  passed: boolean;
+  detail: string;
+  recommendation: string;
+}
+
+interface AiAnalysisResult {
+  summary: string;
+  riskLevel: 'low' | 'medium' | 'high';
+  issues: Array<{
+    title: string;
+    description: string;
+    severity: 'critical' | 'warning' | 'info';
+    fix: string;
+  }>;
+  positives: string[];
+  gdprScore: number;
+}
 
 export default {
   async queue(batch: MessageBatch<ScanJob>, env: Env): Promise<void> {
-    // Process all messages — fail individually without blocking the batch
     await Promise.allSettled(
       batch.messages.map(async (msg) => {
         try {
@@ -41,18 +87,15 @@ export default {
           msg.ack();
         } catch (err) {
           console.error(`[Worker] Scan ${msg.body.scanId} failed:`, err);
-          // Don't requeue — dead letter after max deliveries
           msg.retry({ backoff: { delays: [30000, 60000, 120000] } });
         }
       })
     );
   },
 
-  // HTTP endpoint to enqueue scan jobs (queue producer for the scan-processor worker)
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
-    // POST /enqueue { scanId, url, email, trigger }
     if (request.method === 'POST' && url.pathname === '/enqueue') {
       try {
         const body = await request.json() as ScanJob;
@@ -66,7 +109,6 @@ export default {
       }
     }
 
-    // GET /health
     if (request.method === 'GET' && url.pathname === '/health') {
       return Response.json({ status: 'ok', queue: 'compliance-checker-scan-queue' });
     }
@@ -75,30 +117,20 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
-// ── Scan pipeline ─────────────────────────────────────────────────────────────
-
 async function processScanJob(job: ScanJob, env: Env): Promise<void> {
   const { scanId, url, email } = job;
   console.log(`[Worker] Processing scan ${scanId} → ${url}`);
 
-  // Mark as processing immediately
   await env.DB.prepare(`UPDATE scans SET status = 'processing' WHERE id = ?`).bind(scanId).run();
 
   try {
-    // 1. Crawl
-    const { crawlPage } = await import('../../../../lib/crawler');
-    const crawlResult = await crawlPage(url);
-
-    // 2. Rule-based GDPR checks
-    const { runRuleBasedChecks } = await import('../../../../lib/gdpr-checks');
+    const crawlResult = await crawlPageForWorker(url);
     const ruleChecks = runRuleBasedChecks(crawlResult);
-
-    // 3. AI analysis via Workers AI (MiniMax model)
     const aiResult = await analyzeWithWorkersAI(crawlResult, ruleChecks, env.AI);
 
-    // 4. Build result object
     const result = {
       crawl: {
+        url: crawlResult.url,
         title: crawlResult.title,
         description: crawlResult.description,
         h1s: crawlResult.h1s,
@@ -120,10 +152,7 @@ async function processScanJob(job: ScanJob, env: Env): Promise<void> {
       scannedAt: new Date().toISOString(),
     };
 
-    // 5. Compress and store in D1
-    const rawJson = JSON.stringify(result);
-    const resultJson = await compressGzipBase64(rawJson);
-
+    const resultJson = await compressGzipBase64(JSON.stringify(result));
     await env.DB.prepare(`
       UPDATE scans
       SET status = 'completed', result_json = ?, completed_at = datetime('now')
@@ -132,38 +161,276 @@ async function processScanJob(job: ScanJob, env: Env): Promise<void> {
 
     console.log(`[Worker] Scan ${scanId} completed — score: ${aiResult.gdprScore}`);
 
-    // 6. Send email for subscriber scans (non-blocking)
     if (job.trigger === 'subscriber' && email && env.MAILJET_API_KEY && env.MAILJET_SECRET_KEY) {
-      env.waitUntil(sendReportEmail(email, url, result));
+      await sendReportEmail(env, email, url, result);
     }
   } catch (err: any) {
     console.error(`[Worker] Scan ${scanId} error:`, err?.message || err);
     await env.DB.prepare(`UPDATE scans SET status = 'failed' WHERE id = ?`).bind(scanId).run();
-    throw err; // triggers retry via backoff
+    throw err;
   }
 }
 
-// ── Workers AI analysis ───────────────────────────────────────────────────────
-
-interface AiAnalysisResult {
-  summary: string;
-  riskLevel: 'low' | 'medium' | 'high';
-  issues: Array<{
-    title: string;
-    description: string;
-    severity: 'critical' | 'warning' | 'info';
-    fix: string;
-  }>;
-  positives: string[];
-  gdprScore: number;
+function extractText(html: string, tag: string, maxLen = 200): string {
+  const match = html.match(new RegExp(`<${tag}[^>]*>([^<]+)</${tag}>`, 'i'));
+  return match ? match[1].trim().slice(0, maxLen) : '';
 }
 
-async function analyzeWithWorkersAI(
-  crawlResult: any,
-  ruleBasedChecks: any[],
-  ai: Ai
-): Promise<AiAnalysisResult> {
-  // Truncate large fields
+function extractAllText(html: string, tag: string): string[] {
+  const regex = new RegExp(`<${tag}[^>]*>([^<]+)</${tag}>`, 'gi');
+  const results: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(html)) !== null) results.push(match[1].trim());
+  return results;
+}
+
+function extractMetaContent(html: string, name: string): string {
+  const patterns = [
+    new RegExp(`<meta[^>]+name=["']${name}["'][^>]+content=["']([^"']+)["']`, 'i'),
+    new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+name=["']${name}["']`, 'i'),
+  ];
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match) return match[1].trim().slice(0, 500);
+  }
+  return '';
+}
+
+function extractLinksWithText(html: string, patterns: string[]): Array<{ href: string; text: string }> {
+  const results: Array<{ href: string; text: string }> = [];
+  const linkRegex = /<a[^>]+href=["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = linkRegex.exec(html)) !== null) {
+    const href = match[1];
+    const text = match[2].toLowerCase();
+    if (patterns.some((pattern) => href.toLowerCase().includes(pattern) || text.includes(pattern))) {
+      results.push({ href, text });
+    }
+  }
+  return results;
+}
+
+function countElements(html: string, selector: 'form' | 'input'): number {
+  const patterns: Record<'form' | 'input', RegExp> = {
+    form: /<form[^>]*>/gi,
+    input: /<(?:input|textarea|select)[^>]*>/gi,
+  };
+  return (html.match(patterns[selector]) || []).length;
+}
+
+async function fetchPrivacyPolicyHtml(privacyPolicyUrl: string | null, baseUrl: string): Promise<string | null> {
+  if (!privacyPolicyUrl) return null;
+  try {
+    const resolvedUrl = privacyPolicyUrl.startsWith('http') ? privacyPolicyUrl : new URL(privacyPolicyUrl, baseUrl).href;
+    const response = await fetch(resolvedUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GDPRBot/1.0)' } });
+    if (!response.ok) return null;
+    return (await response.text()).slice(0, 200000);
+  } catch {
+    return null;
+  }
+}
+
+function analysePrivacyPolicyHtml(html: string): Partial<CrawlResult> {
+  const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').toLowerCase();
+  const processorNames = ['google analytics', 'google tag manager', 'facebook', 'meta', 'hotjar', 'stripe', 'mixpanel', 'segment', 'intercom', 'zendesk', 'hubspot', 'mailchimp', 'sendgrid', 'cloudflare', 'sentry'];
+  const processorsFound = processorNames.filter((name) => text.includes(name));
+  const userRightsFound = ['right of access', 'right to erasure', 'right to rectification', 'data portability', 'right to object', 'withdraw consent']
+    .filter((term) => text.includes(term));
+  const retentionMatch = text.match(/(retention period|retained for|kept for|storage period).{0,120}/i);
+
+  return {
+    hasCookiePolicyPage: text.includes('cookie policy'),
+    processorDisclosure: processorsFound.length > 0,
+    processorsFound,
+    hasInternationalTransferDisclosure: ['standard contractual clause', 'scc', 'adequacy decision', 'international transfer', 'transferred to', 'united states'].some((term) => text.includes(term)),
+    hasDataRetentionDisclosure: ['data retention', 'retention period', 'retained for', 'kept for', 'storage period'].some((term) => text.includes(term)),
+    retentionDetails: retentionMatch?.[0] || null,
+    userRightsMechanism: userRightsFound.length >= 3,
+    userRightsFound,
+    dpoContact: null,
+    supervisoryAuthority: text.includes('supervisory authority') ? 'mentioned' : null,
+    ageRestriction: text.includes('under 16') || text.includes('under 13') ? 'mentioned' : null,
+    hasAutomatedDecisionMakingDisclosure: text.includes('automated decision'),
+    hasConsentWithdrawalMechanism: text.includes('withdraw consent'),
+  };
+}
+
+async function crawlPageForWorker(url: string): Promise<CrawlResult> {
+  const response = await fetch(url, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GDPRBot/1.0)' },
+  });
+  if (!response.ok) throw new Error(`Fetch failed with status ${response.status}`);
+
+  const html = await response.text();
+  const title = extractText(html, 'title');
+  const description = extractMetaContent(html, 'description');
+  const h1s = extractAllText(html, 'h1');
+  const privacyLinks = extractLinksWithText(html, ['privacy', 'datenschutz', 'rgpd', 'privacy-policy']);
+  let privacyPolicyUrl: string | null = null;
+  if (privacyLinks.length > 0) {
+    try {
+      privacyPolicyUrl = privacyLinks[0].href.startsWith('http') ? privacyLinks[0].href : new URL(privacyLinks[0].href, url).href;
+    } catch {
+      privacyPolicyUrl = null;
+    }
+  }
+
+  const bannerMatch = html.match(/<(?:div|section|p|span)[^>]+(?:class|id)=["'][^"']*(?:cookie|consent|gdpr)[^"']*["'][^>]*>([^<]{0,300})/i);
+  const hasCookieBanner = Boolean(bannerMatch);
+  const cookieBannerText = bannerMatch?.[1]?.trim().slice(0, 200) || null;
+
+  const trackingPatterns = ['google-analytics', 'googletagmanager', 'facebook', 'fbpixel', 'hotjar', 'mixpanel', 'segment', 'intercom', 'drift', 'zendesk', 'analytics'];
+  const trackingScripts: string[] = [];
+  const scriptSrcRegex = /<script[^>]+src=["']([^"']+)["']/gi;
+  let scriptMatch: RegExpExecArray | null;
+  while ((scriptMatch = scriptSrcRegex.exec(html)) !== null) {
+    const src = scriptMatch[1].toLowerCase();
+    if (trackingPatterns.some((pattern) => src.includes(pattern))) trackingScripts.push(scriptMatch[1]);
+  }
+
+  const formsCount = countElements(html, 'form');
+  const totalFormInputs = countElements(html, 'input');
+  const labeledInputs = (html.match(/<input[^>]+id=["']([^"']+)["'][^>]*>/gi) || []).filter((inputTag) => {
+    const idMatch = inputTag.match(/id=["']([^"']+)["']/);
+    if (!idMatch) return false;
+    const id = idMatch[1];
+    return html.includes(`<label for="${id}"`) || html.includes(`<label for='${id}'`);
+  }).length;
+
+  const thirdPartyEmbeds: string[] = [];
+  const iframeSrcRegex = /<iframe[^>]+src=["']([^"']+)["']/gi;
+  let iframeMatch: RegExpExecArray | null;
+  while ((iframeMatch = iframeSrcRegex.exec(html)) !== null) {
+    const src = iframeMatch[1];
+    if (src.includes('youtube.com') || src.includes('youtu.be')) thirdPartyEmbeds.push('YouTube embed');
+    else if (src.includes('vimeo.com')) thirdPartyEmbeds.push('Vimeo embed');
+    else if (src.includes('maps.google.com') || src.includes('google.com/maps')) thirdPartyEmbeds.push('Google Maps embed');
+    else if (src.includes('instagram.com')) thirdPartyEmbeds.push('Instagram embed');
+    else if (src.includes('twitter.com') || src.includes('platform.twitter')) thirdPartyEmbeds.push('Twitter embed');
+  }
+
+  const mixedContent = /<(?:img|script|link|iframe|source)[^>]+(?:src|href)=["'](http:[^"']+)["']/i.test(html);
+
+  let marketingOptinStatus: CrawlResult['marketingOptinStatus'] = 'no_forms';
+  if (formsCount > 0) {
+    const marketingInputRegex = /<input[^>]+(?:id|name)=["'][^"']*(?:marketing|newsletter|consent|opt[- ]?in)[^"']*["'][^>]*>/gi;
+    const marketingInputs = html.match(marketingInputRegex) || [];
+    if (marketingInputs.length > 0) {
+      const preChecked = marketingInputs.some((inputTag) => inputTag.includes('checked') || inputTag.includes('selected'));
+      marketingOptinStatus = preChecked ? 'pre_checked' : 'present_not_prechecked';
+    } else {
+      marketingOptinStatus = 'missing';
+    }
+  }
+
+  const securityHeaders: Record<string, string> = {};
+  for (const key of ['content-security-policy', 'x-frame-options', 'x-content-type-options', 'referrer-policy', 'permissions-policy', 'strict-transport-security']) {
+    const value = response.headers.get(key);
+    if (value) securityHeaders[key] = value;
+  }
+
+  const privacyPolicyHtml = await fetchPrivacyPolicyHtml(privacyPolicyUrl, url);
+  const policyAnalysis = privacyPolicyHtml ? analysePrivacyPolicyHtml(privacyPolicyHtml) : {};
+
+  return {
+    url,
+    title,
+    description,
+    h1s,
+    hasPrivacyPolicy: Boolean(privacyPolicyUrl),
+    privacyPolicyUrl,
+    privacyPolicyHtml,
+    hasCookieBanner,
+    cookieBannerText,
+    trackingScripts,
+    formsCount,
+    formInputsLabeled: labeledInputs,
+    totalFormInputs,
+    hasSSL: url.startsWith('https://'),
+    screenshots: [],
+    html: html.slice(0, 50000),
+    statusCode: response.status,
+    securityHeaders,
+    hasCookiePolicyPage: false,
+    thirdPartyEmbeds: Array.from(new Set(thirdPartyEmbeds)),
+    mixedContent,
+    marketingOptinStatus,
+    processorDisclosure: false,
+    processorsFound: [],
+    hasInternationalTransferDisclosure: false,
+    hasDataRetentionDisclosure: false,
+    retentionDetails: null,
+    userRightsMechanism: false,
+    userRightsFound: [],
+    dpoContact: null,
+    supervisoryAuthority: null,
+    ageRestriction: null,
+    hasAutomatedDecisionMakingDisclosure: false,
+    hasConsentWithdrawalMechanism: false,
+    ...policyAnalysis,
+  };
+}
+
+function runRuleBasedChecks(crawlResult: CrawlResult): GdprCheck[] {
+  const checks: GdprCheck[] = [];
+  checks.push({
+    id: 'ssl',
+    name: 'SSL/HTTPS Encryption',
+    description: 'Website must use HTTPS for secure data transmission',
+    severity: 'critical',
+    passed: crawlResult.hasSSL,
+    detail: crawlResult.hasSSL ? 'Site uses HTTPS' : 'Site does not use HTTPS',
+    recommendation: crawlResult.hasSSL ? '' : "Install an SSL certificate (Let's Encrypt is free)",
+  });
+  checks.push({
+    id: 'privacy_policy',
+    name: 'Privacy Policy Present',
+    description: 'GDPR requires a clearly accessible privacy policy',
+    severity: 'critical',
+    passed: crawlResult.hasPrivacyPolicy,
+    detail: crawlResult.hasPrivacyPolicy ? `Privacy policy found at: ${crawlResult.privacyPolicyUrl || 'linked on page'}` : 'No privacy policy link detected',
+    recommendation: crawlResult.hasPrivacyPolicy ? '' : 'Add a privacy policy page and link it in the footer',
+  });
+  checks.push({
+    id: 'cookie_consent',
+    name: 'Cookie Consent Banner',
+    description: 'EU law requires cookie consent before setting non-essential cookies',
+    severity: 'critical',
+    passed: crawlResult.hasCookieBanner,
+    detail: crawlResult.hasCookieBanner ? `Cookie banner detected: "${(crawlResult.cookieBannerText || '').slice(0, 100)}"` : 'No cookie consent banner detected',
+    recommendation: crawlResult.hasCookieBanner ? '' : 'Add a GDPR-compliant cookie consent banner',
+  });
+  checks.push({
+    id: 'tracking_scripts',
+    name: 'Third-Party Tracking Scripts',
+    description: 'Tracking scripts require consent under GDPR',
+    severity: crawlResult.trackingScripts.length > 0 ? 'warning' : 'info',
+    passed: crawlResult.trackingScripts.length === 0,
+    detail: crawlResult.trackingScripts.length > 0 ? `Found: ${crawlResult.trackingScripts.join(', ')}` : 'No known tracking scripts detected',
+    recommendation: crawlResult.trackingScripts.length > 0 ? 'Ensure these scripts only load after explicit user consent.' : '',
+  });
+  checks.push({
+    id: 'form_labels',
+    name: 'Form Input Labels',
+    description: 'Form inputs should have labels for accessibility and transparency',
+    severity: 'warning',
+    passed: crawlResult.totalFormInputs === 0 || (crawlResult.formInputsLabeled / Math.max(crawlResult.totalFormInputs, 1)) >= 0.8,
+    detail: crawlResult.totalFormInputs === 0 ? 'No form inputs found' : `${crawlResult.formInputsLabeled}/${crawlResult.totalFormInputs} inputs have labels`,
+    recommendation: crawlResult.totalFormInputs > 0 && (crawlResult.formInputsLabeled / Math.max(crawlResult.totalFormInputs, 1)) < 0.8 ? 'Add labels or aria-label attributes to form inputs' : '',
+  });
+  checks.push({
+    id: 'security_headers',
+    name: 'Security Headers',
+    description: 'Security headers protect the site from common attacks',
+    severity: Object.keys(crawlResult.securityHeaders).length >= 3 ? 'info' : 'warning',
+    passed: Object.keys(crawlResult.securityHeaders).length > 0,
+    detail: Object.keys(crawlResult.securityHeaders).length > 0 ? `Present: ${Object.keys(crawlResult.securityHeaders).join(', ')}` : 'No key security headers detected',
+    recommendation: Object.keys(crawlResult.securityHeaders).length > 0 ? '' : 'Add CSP, X-Frame-Options, X-Content-Type-Options, and Referrer-Policy headers',
+  });
+  return checks;
+}
+
+async function analyzeWithWorkersAI(crawlResult: any, ruleBasedChecks: any[], ai: Ai): Promise<AiAnalysisResult> {
   const truncated = {
     ...crawlResult,
     html: crawlResult.html ? crawlResult.html.substring(0, 1500) + '...[truncated]' : '',
@@ -182,116 +449,67 @@ Return a JSON object with this exact structure:
 {
   "summary": "2-3 sentence executive summary of compliance posture",
   "riskLevel": "low | medium | high",
-  "issues": [
-    {
-      "title": "Issue title",
-      "description": "What the problem is and why it matters under GDPR",
-      "severity": "critical | warning | info",
-      "fix": "Specific action to fix this issue"
-    }
-  ],
+  "issues": [{"title": "Issue title", "description": "What the problem is and why it matters under GDPR", "severity": "critical | warning | info", "fix": "Specific action to fix this issue"}],
   "positives": ["List of things done well from a GDPR perspective"],
   "gdprScore": 0-100
-}
+}`;
 
-Be specific. Generic advice is not helpful. Focus on actionable fixes.`;
-
-  // Workers AI binding — model is configured via the [ai] binding in wrangler.toml
-  // The model used must be set to "MiniMax-M2.5" in the Cloudflare dashboard or via
-  // the Workers AI model selection for the account.
-  // If no AI binding is available, fall back to a basic result.
   if (!ai) {
-    return {
-      summary: 'AI analysis unavailable (no Workers AI binding).',
-      riskLevel: 'medium',
-      issues: [],
-      positives: [],
-      gdprScore: 50,
-    };
+    return { summary: 'AI analysis unavailable.', riskLevel: 'medium', issues: [], positives: [], gdprScore: 50 };
   }
-
-  const response = await ai.run('@cf/minimax/m2.5', {
-    messages: [{ role: 'user', content: prompt }],
-    temperature: 0.3,
-    max_tokens: 1200,
-  });
-
-  let content = response.choices?.[0]?.messages?.[0]?.content || '{}';
-
-  // Defensive: strip any markdown fences or thinking tags
-  content = content.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').trim();
-  content = content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-  content = content.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').trim();
-
-  // Extract JSON object if wrapped in extra text
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
-  if (jsonMatch) content = jsonMatch[0];
-
-  // Fix trailing commas and control chars
-  content = content.replace(/,(\s*[}\]])/g, '$1');
-  content = content.replace(/[\x00-\x1F\x7F]/g, '');
 
   try {
-    const parsed = JSON.parse(content) as AiAnalysisResult;
-    if (parsed.gdprScore === undefined || !parsed.issues) {
-      throw new Error('Invalid AI response shape');
+    const response = await ai.run('@cf/minimax/m2.5', {
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.3,
+      max_tokens: 1200,
+    });
+
+    let content = response.choices?.[0]?.messages?.[0]?.content || '{}';
+    content = content.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').replace(/^```json\s*/i, '').replace(/^```\s*/i, '').trim();
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) content = jsonMatch[0];
+    content = content.replace(/,(\s*[}\]])/g, '$1').replace(/[\x00-\x1F\x7F]/g, '');
+
+    try {
+      const parsed = JSON.parse(content) as AiAnalysisResult;
+      if (parsed.gdprScore === undefined || !parsed.issues) throw new Error('Invalid AI response shape');
+      return parsed;
+    } catch {
+      console.error('[Worker] AI parse failed, using fallback:', content.substring(0, 200));
+      return { summary: 'AI analysis unavailable. Please try again.', riskLevel: 'medium', issues: [], positives: [], gdprScore: 50 };
     }
-    return parsed;
-  } catch {
-    console.error('[Worker] AI parse failed, using fallback:', content.substring(0, 200));
-    return {
-      summary: 'AI analysis unavailable. Please try again.',
-      riskLevel: 'medium',
-      issues: [],
-      positives: [],
-      gdprScore: 50,
-    };
+  } catch (err) {
+    console.error('[Worker] AI invocation failed, using fallback:', err);
+    return { summary: 'AI analysis unavailable. Please try again.', riskLevel: 'medium', issues: [], positives: [], gdprScore: 50 };
   }
 }
-
-// ── Compression (Web API — works in Workers) ──────────────────────────────────
 
 async function compressGzipBase64(text: string): Promise<string> {
   const encoded = new TextEncoder().encode(text);
   const cs = new CompressionStream('gzip');
   const writer = cs.writable.getWriter();
-  writer.write(encoded);
-  writer.close();
-  const reader = cs.readable.getReader();
-  const chunks: Uint8Array[] = [];
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-  }
-  const total = chunks.reduce((s, c) => s + c.byteLength, 0);
-  const merged = new Uint8Array(total);
-  let offset = 0;
-  for (const c of chunks) { merged.set(c, offset); offset += c.byteLength; }
-
-  // Convert to base64
+  await writer.write(encoded);
+  await writer.close();
+  const response = new Response(cs.readable);
+  const bytes = new Uint8Array(await response.arrayBuffer());
   let binary = '';
-  for (let i = 0; i < merged.length; i++) binary += String.fromCharCode(merged[i]);
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
   return btoa(binary);
 }
 
-// ── Email (Mailjet) ───────────────────────────────────────────────────────────
-
-async function sendReportEmail(email: string, url: string, result: any): Promise<void> {
+async function sendReportEmail(env: Env, email: string, url: string, result: any): Promise<void> {
   try {
     const apiKey = env.MAILJET_API_KEY;
     const secretKey = env.MAILJET_SECRET_KEY;
-    if (!apiKey || !secretKey) {
-      console.error('[Worker] Mailjet credentials not configured');
-      return;
-    }
-    const html = generateReportHtml(url, result);
+    if (!apiKey || !secretKey) return;
     const credentials = btoa(`${apiKey}:${secretKey}`);
-    const response = await fetch('https://api.mailjet.com/v3.1/send', {
+    const html = `<html><body><h1>ComplyScan Report</h1><p>URL: ${url}</p><p>Score: ${result.aiAnalysis?.gdprScore ?? 50}</p></body></html>`;
+    await fetch('https://api.mailjet.com/v3.1/send', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Basic ${credentials}`,
+        Authorization: `Basic ${credentials}`,
       },
       body: JSON.stringify({
         Messages: [{
@@ -302,63 +520,8 @@ async function sendReportEmail(email: string, url: string, result: any): Promise
         }],
       }),
     });
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('[Worker] Mailjet API error:', response.status, errText);
-    }
   } catch (err) {
     console.error('[Worker] Failed to send report email:', err);
   }
 }
 
-function generateReportHtml(url: string, result: any): string {
-  const { ruleChecks, aiAnalysis } = result;
-  const score = aiAnalysis?.gdprScore ?? 0;
-  const scoreColor = score >= 70 ? '#22c55e' : score >= 40 ? '#f59e0b' : '#ef4444';
-
-  const checksHtml = ruleChecks.map((check: any) => `
-    <div style="padding:12px;margin:8px 0;border-radius:8px;background:#f5f5f5;border-left:4px solid ${check.passed ? '#22c55e' : '#ef4444'};">
-      <strong>${check.name}</strong> — ${check.passed ? 'PASS' : 'FAIL'}
-      <p>${check.detail}</p>
-      ${check.recommendation ? `<p><em>Fix: ${check.recommendation}</em></p>` : ''}
-    </div>
-  `).join('');
-
-  const issuesHtml = aiAnalysis?.issues?.length
-    ? aiAnalysis.issues.map((issue: any) => `
-        <div style="padding:12px;margin:8px 0;border-radius:8px;background:#fef2f2;border-left:4px solid #ef4444;">
-          <strong>${issue.title}</strong> (${issue.severity})
-          <p>${issue.description}</p>
-          <p><strong>Fix:</strong> ${issue.fix}</p>
-        </div>
-      `).join('')
-    : '';
-
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>GDPR Report</title>
-</head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:800px;margin:0 auto;padding:40px 20px;color:#1a1a2e;">
-  <div style="text-align:center;margin-bottom:40px;">
-    <h1 style="font-size:28px;color:#4f8ef7;">ComplyScan</h1>
-    <h2>GDPR Compliance Report</h2>
-    <p style="color:#666;">${url}</p>
-  </div>
-  <div style="text-align:center;font-size:72px;font-weight:bold;color:${scoreColor};">${score}/100</div>
-  <div style="text-align:center;color:#666;margin-bottom:30px;">GDPR Compliance Score</div>
-  <div style="margin-bottom:30px;">
-    <h3 style="border-bottom:2px solid #4f8ef7;padding-bottom:8px;">Automated Checks</h3>
-    ${checksHtml}
-  </div>
-  ${issuesHtml ? `<div style="margin-bottom:30px;">
-    <h3 style="border-bottom:2px solid #4f8ef7;padding-bottom:8px;">AI-Detected Issues</h3>
-    ${issuesHtml}
-  </div>` : ''}
-  <div style="text-align:center;color:#999;font-size:12px;margin-top:50px;">
-    <p>Generated by ComplyScan — GDPR compliance made effortless</p>
-  </div>
-</body>
-</html>`;
-}

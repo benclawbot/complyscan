@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb, sendScanJob } from '@/lib/env';
+import { getDb, getRuntimeEnv, sendScanJob } from '@/lib/env';
 import { v4 as uuidv4 } from 'uuid';
 
 async function verifySession(request: NextRequest, db: ReturnType<typeof getDb>) {
@@ -16,6 +16,7 @@ async function verifySession(request: NextRequest, db: ReturnType<typeof getDb>)
 }
 
 export async function GET(request: NextRequest, { params: _params }: { params: Promise<{ id: string }> }, env: any) {
+  env = getRuntimeEnv(env);
   const db = getDb(env);
   const session = await verifySession(request, db);
   if (!session) {
@@ -34,6 +35,7 @@ export async function GET(request: NextRequest, { params: _params }: { params: P
 }
 
 export async function POST(request: NextRequest, { params: _params }: { params: Promise<{ id: string }> }, env: any) {
+  env = getRuntimeEnv(env);
   const db = getDb(env);
   const session = await verifySession(request, db);
   if (!session) {

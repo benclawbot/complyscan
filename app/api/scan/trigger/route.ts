@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb, compressGzip, sendScanJob, parseResultJson } from '@/lib/env';
+import { getDb, compressGzip, getRuntimeEnv, sendScanJob, parseResultJson } from '@/lib/env';
 import { MOCK_SCAN_MODE, buildMockScanResult } from '@/lib/mock-scan';
 
 export async function POST(request: NextRequest) {
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'url is required' }, { status: 400 });
   }
 
-  const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
+  const env: any = getRuntimeEnv((request as any).env ?? (globalThis as any).__env ?? undefined);
   const db = getDb(env);
 
   if (!scanId) {
