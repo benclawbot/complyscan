@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
-// Stripe is imported dynamically when MOCK_STRIPE is false
-import { getDb } from '@/lib/env';
-
-const MOCK_STRIPE = process.env.MOCK_STRIPE === '1' || process.env.E2E_TEST_MODE === '1';
+import { getDb, getStripeSecrets } from '@/lib/env';
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,6 +21,9 @@ export async function POST(request: NextRequest) {
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://127.0.0.1:3000';
     const scanId = existingScanId || uuidv4();
+
+    const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
+    const MOCK_STRIPE = env?.MOCK_STRIPE === '1' || env?.E2E_TEST_MODE === '1' || process.env?.MOCK_STRIPE === '1' || process.env?.E2E_TEST_MODE === '1';
 
     if (MOCK_STRIPE) {
       const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
@@ -65,14 +65,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const stripeKey = process.env.STRIPE_SECRET_KEY;
-    if (!stripeKey) {
+    const stripeSecrets = getStripeSecrets(env);
+    if (!stripeSecrets) {
       return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 });
     }
 
     const priceId = normalizedPlan === 'monthly'
-      ? process.env.STRIPE_PRICE_MONTHLY?.trim()
-      : process.env.STRIPE_PRICE_PDF_REPORT?.trim();
+      ? stripeSecrets.STRIPE_PRICE_MONTHLY?.trim()
+      : stripeSecrets.STRIPE_PRICE_PDF_REPORT?.trim();
 
     if (!priceId) {
       return NextResponse.json({ error: 'Price not configured' }, { status: 500 });
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
       const customerResp = await fetch('https://api.stripe.com/v1/customers', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${stripeKey}`,
+          Authorization: `Bearer ${stripeSecrets.STRIPE_SECRET_KEY}`,
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: new URLSearchParams({ email: email || '' }).toString(),
@@ -111,6 +111,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: customer.error?.message || 'Customer creation failed' }, { status: 500 });
       }
       params.append('customer', customer.id);
+      // Remove customer_email since customer is now set — Stripe doesn't allow both
+      params.delete('customer_email');
       params.append('subscription_data[metadata][plan]', 'agency');
       params.append('subscription_data[metadata][scanId]', scanId);
       params.append('subscription_data[metadata][url]', websiteUrl || '');
@@ -119,7 +121,7 @@ export async function POST(request: NextRequest) {
     const resp = await fetch('https://api.stripe.com/v1/checkout/sessions', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${stripeKey}`,
+        Authorization: `Bearer ${stripeSecrets.STRIPE_SECRET_KEY}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: params.toString(),
@@ -136,4 +138,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: err?.message || 'Checkout failed' }, { status: 500 });
   }
 }
+
+
+
+
+
 

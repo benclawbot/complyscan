@@ -32,6 +32,25 @@ export function getRuntimeEnv(env?: any): any {
   return env ?? (globalThis as any).__env ?? getCloudflareContextEnv() ?? undefined;
 }
 
+export interface StripeSecrets {
+  STRIPE_SECRET_KEY: string;
+  STRIPE_WEBHOOK_SECRET?: string;
+  STRIPE_PRICE_PDF_REPORT?: string;
+  STRIPE_PRICE_MONTHLY?: string;
+}
+
+export function getStripeSecrets(env?: any): StripeSecrets | null {
+  const runtimeEnv = getRuntimeEnv(env);
+  const stripeKey = runtimeEnv?.STRIPE_SECRET_KEY ?? (globalThis as any).__env?.STRIPE_SECRET_KEY;
+  if (!stripeKey) return null;
+  return {
+    STRIPE_SECRET_KEY: stripeKey,
+    STRIPE_WEBHOOK_SECRET: runtimeEnv?.STRIPE_WEBHOOK_SECRET ?? (globalThis as any).__env?.STRIPE_WEBHOOK_SECRET,
+    STRIPE_PRICE_PDF_REPORT: runtimeEnv?.STRIPE_PRICE_PDF_REPORT ?? (globalThis as any).__env?.STRIPE_PRICE_PDF_REPORT,
+    STRIPE_PRICE_MONTHLY: runtimeEnv?.STRIPE_PRICE_MONTHLY ?? (globalThis as any).__env?.STRIPE_PRICE_MONTHLY,
+  };
+}
+
 function ensureLocalColumn(db: any, table: string, column: string, ddl: string) {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
   if (!cols.some((c) => c.name === column)) {
@@ -284,3 +303,4 @@ export async function sendScanJob(job: { scanId: string; url: string; email?: st
   if (!runtimeEnv?.SCAN_QUEUE) return;
   await runtimeEnv.SCAN_QUEUE.send(job);
 }
+

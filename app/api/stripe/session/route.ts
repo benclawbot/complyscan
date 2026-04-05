@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/env';
+import { getDb, getStripeSecrets } from '@/lib/env';
 import { retrieveCheckoutSession } from '@/lib/stripe-api';
-
-const MOCK_STRIPE = process.env.MOCK_STRIPE === '1' || process.env.E2E_TEST_MODE === '1';
 
 export async function GET(request: NextRequest) {
   const sessionId = request.nextUrl.searchParams.get('session_id');
@@ -12,6 +10,7 @@ export async function GET(request: NextRequest) {
 
   const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
   const db = getDb(env);
+  const MOCK_STRIPE = env?.MOCK_STRIPE === '1' || env?.E2E_TEST_MODE === '1';
 
   if (MOCK_STRIPE && sessionId.startsWith('mock_monthly_')) {
     const subscriber = await db.prepare('SELECT id, email FROM subscribers WHERE stripe_customer_id = ?').get(sessionId) as any;
@@ -30,13 +29,13 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
-  if (!stripeKey) {
+  const stripeSecrets = getStripeSecrets(env);
+  if (!stripeSecrets) {
     return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 });
   }
 
   try {
-    const session = await retrieveCheckoutSession(sessionId);
+    const session = await retrieveCheckoutSession(sessionId, stripeSecrets.STRIPE_SECRET_KEY);
     const result: Record<string, any> = {
       mode: session.mode,
       scanId: session.metadata?.scanId || null,
@@ -61,3 +60,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+

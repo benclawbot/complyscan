@@ -8,10 +8,15 @@ function getStripeSecretKey(): string {
   return key;
 }
 
-async function stripeRequest(path: string): Promise<any> {
+function resolveKey(providedKey?: string): string {
+  return providedKey?.trim() || getStripeSecretKey();
+}
+
+async function stripeRequest(path: string, stripeKey?: string): Promise<any> {
+  const key = resolveKey(stripeKey);
   const response = await fetch(`${STRIPE_API_BASE}${path}`, {
     headers: {
-      Authorization: `Bearer ${getStripeSecretKey()}`,
+      Authorization: `Bearer ${key}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
   });
@@ -23,12 +28,12 @@ async function stripeRequest(path: string): Promise<any> {
   return data;
 }
 
-export async function retrieveCheckoutSession(sessionId: string): Promise<any> {
-  return stripeRequest(`/checkout/sessions/${encodeURIComponent(sessionId)}`);
+export async function retrieveCheckoutSession(sessionId: string, stripeKey?: string): Promise<any> {
+  return stripeRequest(`/checkout/sessions/${encodeURIComponent(sessionId)}`, stripeKey);
 }
 
-export async function retrieveSubscription(subscriptionId: string): Promise<any> {
-  return stripeRequest(`/subscriptions/${encodeURIComponent(subscriptionId)}`);
+export async function retrieveSubscription(subscriptionId: string, stripeKey?: string): Promise<any> {
+  return stripeRequest(`/subscriptions/${encodeURIComponent(subscriptionId)}`, stripeKey);
 }
 
 export function verifyStripeWebhookSignature(payload: string, signatureHeader: string, webhookSecret: string): boolean {

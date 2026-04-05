@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb, parseResultJson } from '@/lib/env';
+import { getDb, parseResultJson, getStripeSecrets } from '@/lib/env';
 import { generateReportHtml } from '@/lib/report';
 import { retrieveCheckoutSession } from '@/lib/stripe-api';
 
@@ -37,21 +37,24 @@ export async function GET(
     return NextResponse.json({ error: 'Scan failed. Please try again.' }, { status: 500 });
   }
 
-  if (sessionId && process.env.STRIPE_SECRET_KEY) {
-    try {
-      const session = await retrieveCheckoutSession(sessionId);
-      const stripeScanId = session.metadata?.scanId;
-      if (stripeScanId && stripeScanId === scanId) {
-        const refreshed = await getScanResult(db, scanId);
-        if (refreshed.result) {
-          return NextResponse.json({
-            reportHtml: generateReportHtml(refreshed.scan?.url || '', refreshed.result),
-            url: refreshed.scan?.url || '',
-          });
+  if (sessionId) {
+    const stripeSecrets = getStripeSecrets(env);
+    if (stripeSecrets) {
+      try {
+        const session = await retrieveCheckoutSession(sessionId, stripeSecrets.STRIPE_SECRET_KEY);
+        const stripeScanId = session.metadata?.scanId;
+        if (stripeScanId && stripeScanId === scanId) {
+          const refreshed = await getScanResult(db, scanId);
+          if (refreshed.result) {
+            return NextResponse.json({
+              reportHtml: generateReportHtml(refreshed.scan?.url || '', refreshed.result),
+              url: refreshed.scan?.url || '',
+            });
+          }
         }
+      } catch (error: any) {
+        console.error('Stripe session retrieve failed:', error.message);
       }
-    } catch (error: any) {
-      console.error('Stripe session retrieve failed:', error.message);
     }
   }
 

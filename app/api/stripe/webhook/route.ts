@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
-import { getDb } from '@/lib/env';
+import { getDb, getStripeSecrets } from '@/lib/env';
 import { retrieveSubscription, verifyStripeWebhookSignature } from '@/lib/stripe-api';
 
 export async function POST(request: NextRequest) {
   try {
-    if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
+    const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
+    const stripeSecrets = getStripeSecrets(env);
+    if (!stripeSecrets || !stripeSecrets.STRIPE_WEBHOOK_SECRET) {
       return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 });
     }
 
     const body = await request.text();
     const signature = request.headers.get('stripe-signature');
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    const webhookSecret = stripeSecrets.STRIPE_WEBHOOK_SECRET;
 
     if (!signature || !webhookSecret) {
       return NextResponse.json({ error: 'Missing signature or webhook secret' }, { status: 400 });
@@ -24,7 +26,6 @@ export async function POST(request: NextRequest) {
 
     const event = JSON.parse(body) as any;
 
-    const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
     const db = getDb(env);
 
     switch (event.type) {
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
           let periodEnd: string | null = null;
           let cancelAtPeriodEnd = false;
           try {
-            const subscription = await retrieveSubscription(String(session.subscription));
+            const subscription = await retrieveSubscription(String(session.subscription), stripeSecrets.STRIPE_SECRET_KEY);
             periodEnd = subscription.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null;
             cancelAtPeriodEnd = Boolean(subscription.cancel_at_period_end);
           } catch {
@@ -121,7 +122,7 @@ export async function POST(request: NextRequest) {
         const customerId = String(invoiceAny.customer || '');
         if (invoiceAny.subscription) {
           try {
-            const subscription = await retrieveSubscription(String(invoiceAny.subscription));
+            const subscription = await retrieveSubscription(String(invoiceAny.subscription), stripeSecrets.STRIPE_SECRET_KEY);
             const periodEnd = subscription.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null;
             await db.prepare(`
               UPDATE subscribers
@@ -167,6 +168,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal error', detail: err.message }, { status: 500 });
   }
 }
+
+
+
+
 
 
 

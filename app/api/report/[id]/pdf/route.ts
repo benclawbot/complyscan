@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb, parseResultJson } from '@/lib/env';
+import { getDb, parseResultJson, getStripeSecrets } from '@/lib/env';
 import { getBearerToken, verifySubscriberToken } from '@/lib/auth';
 import { retrieveCheckoutSession } from '@/lib/stripe-api';
 
@@ -20,13 +20,14 @@ async function isSubscriberAuthorized(request: NextRequest, db: ReturnType<typeo
   return Boolean(scan?.subscriber_id && scan.subscriber_id === subscriber.subscriber_id);
 }
 
-async function isPaidSessionValid(sessionId: string | null, scanId: string) {
+async function isPaidSessionValid(sessionId: string | null, scanId: string, env: any) {
   if (!sessionId) return false;
   if (sessionId.startsWith('mock_pdf_')) return sessionId.endsWith(scanId);
-  if (!process.env.STRIPE_SECRET_KEY) return false;
+  const stripeSecrets = getStripeSecrets(env);
+  if (!stripeSecrets) return false;
 
   try {
-    const session = await retrieveCheckoutSession(sessionId);
+    const session = await retrieveCheckoutSession(sessionId, stripeSecrets.STRIPE_SECRET_KEY);
     return session.payment_status === 'paid' && session.metadata?.scanId === scanId;
   } catch {
     return false;
@@ -102,11 +103,15 @@ export async function GET(
   }
 
   const subscriberAuthorized = await isSubscriberAuthorized(request, db, scanId);
-  const paidSessionAuthorized = await isPaidSessionValid(sessionId, scanId);
+  const paidSessionAuthorized = await isPaidSessionValid(sessionId, scanId, env);
   if (!subscriberAuthorized && !paidSessionAuthorized) {
     return NextResponse.json({ error: 'PDF not purchased. Please upgrade to access the full report.' }, { status: 403 });
   }
 
   return generateFromResult(data.result, scanId, 'pdf', env);
 }
+
+
+
+
 
