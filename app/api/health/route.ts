@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb, getRuntimeEnv } from '@/lib/env';
+import { getDb, getRuntimeEnv, getStripeSecrets } from '@/lib/env';
 
 export async function GET(request: NextRequest) {
   const env: any = getRuntimeEnv((request as any).env ?? (globalThis as any).__env ?? undefined);
+  const stripeSecrets = getStripeSecrets(request as any);
+  const cloudflareContextEnv = (globalThis as any)[Symbol.for('__cloudflare-context__')]?.env;
 
   let dbOk = false;
   let dbError: string | null = null;
@@ -26,6 +28,18 @@ export async function GET(request: NextRequest) {
     },
     checks: {
       db: dbOk ? 'ok' : 'error',
+      stripe: stripeSecrets ? 'ok' : 'missing',
+    },
+    env_debug: {
+      requestEnvPresent: Boolean((request as any).env),
+      globalEnvPresent: Boolean((globalThis as any).__env),
+      cloudflareContextPresent: Boolean(cloudflareContextEnv),
+      processStripeSecret: Boolean(process.env.STRIPE_SECRET_KEY),
+      processStripePdfPrice: Boolean(process.env.STRIPE_PRICE_PDF_REPORT || process.env.STRIPE_PRICE_SINGLE_SCAN),
+      processStripeMonthlyPrice: Boolean(process.env.STRIPE_PRICE_MONTHLY),
+      resolvedStripeSecret: Boolean(stripeSecrets?.STRIPE_SECRET_KEY),
+      resolvedStripePdfPrice: Boolean(stripeSecrets?.STRIPE_PRICE_PDF_REPORT),
+      resolvedStripeMonthlyPrice: Boolean(stripeSecrets?.STRIPE_PRICE_MONTHLY),
     },
     errors: {
       db: dbError,
@@ -33,3 +47,5 @@ export async function GET(request: NextRequest) {
     workerHealthUrl: 'https://compliance-checker-scan-processor.benclawbot.workers.dev/health',
   });
 }
+
+
