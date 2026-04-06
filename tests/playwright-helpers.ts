@@ -1,7 +1,7 @@
 /**
  * Playwright test helpers — cleanup utilities for E2E tests
  */
-const BASE_URL = process.env.BASE_URL || 'https://complyscan2.pages.dev';
+const BASE_URL = process.env.BASE_URL || 'https://complyscan.pages.dev';
 
 export async function cleanUpTestScans(email: string): Promise<void> {
   try {
@@ -35,4 +35,5 @@ export async function waitForUrl(url: string, options: {
   }
   throw new Error(`URL ${url} did not return ${expectedStatus} within ${timeout}ms`);
 }
+
 

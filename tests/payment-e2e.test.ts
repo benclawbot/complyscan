@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { chromium } from 'playwright';
 
-const BASE_URL = 'https://complyscan2.vercel.app';
+const BASE_URL = 'https://complyscan.pages.dev';
 
 describe('Payment Flow E2E', () => {
   let browser: any;
@@ -121,3 +121,4 @@ describe('Webhook endpoint', () => {
     expect(response.status).toBeGreaterThanOrEqual(400);
   });
 });
+

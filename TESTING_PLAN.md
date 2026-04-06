@@ -1,7 +1,7 @@
 # ComplyScan Full Workflow Testing Plan
 
 ## Environment
-- **App URL**: https://complyscan2.pages.dev (Cloudflare Pages)
+- **App URL**: https://complyscan.pages.dev (Cloudflare Pages)
 - **Local Dev**: http://localhost:8787 (wrangler pages dev)
 - **Test Website**: https://example.com (realistic target for automated testing)
 - **Stripe**: Test mode (pk_test_... / sk_test_...)
@@ -31,7 +31,7 @@ STRIPE_PRICE_MONTHLY=price_...
 BROWSERLESS_API_KEY=2U8sCY...7372
 MINIMAX_API_KEY=...
 DATABASE_PATH=/tmp/complyscan.db
-NEXT_PUBLIC_APP_URL=https://complyscan2.pages.dev
+NEXT_PUBLIC_APP_URL=https://complyscan.pages.dev
 ```
 
 ---
@@ -42,7 +42,7 @@ NEXT_PUBLIC_APP_URL=https://complyscan2.pages.dev
 **Flow**: Homepage → Enter URL + email → Click "Scan Free" → Wait for results
 
 **Steps**:
-1. Navigate to https://complyscan2.pages.dev
+1. Navigate to https://complyscan.pages.dev
 2. Enter URL: `https://example.com`
 3. Enter email: `e2e-free-001@benposta.com`
 4. Click "Scan Free" button
@@ -63,7 +63,7 @@ NEXT_PUBLIC_APP_URL=https://complyscan2.pages.dev
 **Flow**: Homepage → Enter URL → Click "Get PDF Report" → Stripe checkout → Success → Report
 
 **Steps**:
-1. Navigate to https://complyscan2.pages.dev
+1. Navigate to https://complyscan.pages.dev
 2. Enter URL: `https://example.com`
 3. Click "Get PDF Report" (Pro plan, €9)
 4. Complete Stripe checkout:
@@ -85,7 +85,7 @@ NEXT_PUBLIC_APP_URL=https://complyscan2.pages.dev
 **Flow**: Pricing → "Start Agency" → Stripe checkout → Success with token → Dashboard
 
 **Steps**:
-1. Navigate to https://complyscan2.pages.dev/pricing
+1. Navigate to https://complyscan.pages.dev/pricing
 2. Click "Start Agency" on Agency plan (€99/month)
 3. Complete Stripe checkout:
    - Email: `e2e-agency-001@benposta.com`
@@ -135,3 +135,6 @@ the subscriber token in the DB. This should work correctly.
 ### Test Environment Variables
 Local testing with `wrangler pages dev` requires env vars passed via `--var` or `.env` file.
 The `DATABASE_PATH=/tmp/complyscan.db` is needed for the local SQLite dev DB.
+
+
+
