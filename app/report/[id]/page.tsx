@@ -73,7 +73,13 @@ export default function ReportPage() {
     if (sessionId) params.set('session_id', sessionId);
     if (token) params.set('token', token);
     const suffix = params.toString() ? `?${params.toString()}` : '';
-    window.open(`/api/report/${encodeURIComponent(scanId || '')}/pdf${suffix}`, '_blank');
+    const href = `/api/report/${encodeURIComponent(scanId || '')}/pdf${suffix}`;
+    const link = document.createElement('a');
+    link.href = href;
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   };
 
   if (status === 'error') {
@@ -148,3 +154,4 @@ export default function ReportPage() {
     </div>
   );
 }
+
