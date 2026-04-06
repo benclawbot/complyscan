@@ -20,7 +20,7 @@ async function hydrateMockScanIfNeeded(db: ReturnType<typeof getDb>, scanId: str
     return getScanResult(db, scanId);
   }
 
-  const result = buildMockScanResult(scan.url || 'https://example.com');
+  const result = buildMockScanResult(scan.url || 'https://example.com', true);
   await db.prepare(`
     UPDATE scans
     SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
@@ -48,7 +48,9 @@ export async function GET(
   }
 
   if (result && scan?.status === 'completed') {
-    return NextResponse.json({ reportHtml: generateReportHtml(scan.url || '', result), url: scan.url || '' });
+    // Free/preview: no sessionId means unauthenticated free scan — show limited content
+    const fullReport = Boolean(sessionId);
+    return NextResponse.json({ reportHtml: generateReportHtml(scan.url || '', result, fullReport), url: scan.url || '' });
   }
 
   if (!scan && !sessionId) {
@@ -68,7 +70,7 @@ export async function GET(
       const refreshed = await hydrateMockScanIfNeeded(db, scanId, sessionId);
       if (refreshed?.result) {
         return NextResponse.json({
-          reportHtml: generateReportHtml(refreshed.scan?.url || '', refreshed.result),
+          reportHtml: generateReportHtml(refreshed.scan?.url || '', refreshed.result, true),
           url: refreshed.scan?.url || '',
         });
       }
@@ -83,7 +85,7 @@ export async function GET(
           const refreshed = await getScanResult(db, scanId);
           if (refreshed.result) {
             return NextResponse.json({
-              reportHtml: generateReportHtml(refreshed.scan?.url || '', refreshed.result),
+              reportHtml: generateReportHtml(refreshed.scan?.url || '', refreshed.result, true),
               url: refreshed.scan?.url || '',
             });
           }
@@ -96,3 +98,7 @@ export async function GET(
 
   return NextResponse.json({ error: 'Scan not yet complete' }, { status: 202 });
 }
+
+
+
+

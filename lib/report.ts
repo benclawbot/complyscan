@@ -155,15 +155,24 @@ function scoreBarHtml(score: number): string {
   return html;
 }
 
-export function generateReportHtml(url: string, result: ScanResult): string {
+export function generateReportHtml(url: string, result: ScanResult, fullReport = true): string {
   const { crawl, ruleChecks, aiAnalysis, scannedAt } = result;
   const score = aiAnalysis?.gdprScore ?? 0;
   const scoreColorVal = scoreColor(score);
   const risk = aiAnalysis?.riskLevel ?? 'unknown';
   const passCount = ruleChecks.filter(c => c.passed).length;
   const failCount = ruleChecks.filter(c => !c.passed).length;
-  const issueCount = aiAnalysis?.issues?.length ?? 0;
-  const criticalIssues = aiAnalysis?.issues?.filter(i => i.severity === 'critical') ?? [];
+
+  const allIssues = aiAnalysis?.issues ?? [];
+  const displayedIssues = fullReport ? allIssues : allIssues.slice(0, 3);
+  const hiddenIssueCount = allIssues.length - displayedIssues.length;
+  const issueCount = displayedIssues.length;
+
+  const allFailedChecks = ruleChecks.filter(c => !c.passed);
+  const displayedFailedChecks = fullReport ? allFailedChecks : allFailedChecks.slice(0, 3);
+  const hiddenFailedCount = allFailedChecks.length - displayedFailedChecks.length;
+  const passedChecks = ruleChecks.filter(c => c.passed);
+  const criticalIssues = displayedIssues.filter(i => i.severity === 'critical');
 
   const scanDate = new Date(scannedAt).toLocaleDateString('en-GB', {
     timeZone: 'Europe/Zurich',
@@ -173,9 +182,15 @@ export function generateReportHtml(url: string, result: ScanResult): string {
   });
 
   // ── Cover Page ─────────────────────────────────────────────────────────────
+  const previewBanner = !fullReport ? `
+      <div style="background:#f59e0b;color:#1e293b;padding:10px 24px;border-radius:8px;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:32px;">
+        FREE PREVIEW — Upgrade to view full report
+      </div>` : '';
+
   const coverPage = `
   <div style="page-break-after:always;">
   <div style="display:flex;flex-direction:column;justify-content:center;align-items:center;height:100vh;background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);color:${WHITE};text-align:center;padding:60px;">
+      ${previewBanner}
       <div style="font-size:42px;font-weight:800;letter-spacing:-1px;margin-bottom:8px;">ComplyScan</div>
       <div style="font-size:14px;opacity:0.7;letter-spacing:2px;text-transform:uppercase;margin-bottom:60px;">GDPR Compliance Report</div>
 
@@ -199,12 +214,16 @@ export function generateReportHtml(url: string, result: ScanResult): string {
   </div>`;
 
   // ── Executive Summary ──────────────────────────────────────────────────────
+  const execSummaryPreviewNote = !fullReport ? `<div style="background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#92400e;">
+      <strong>Free Preview:</strong> This report shows ${displayedFailedChecks.length} of ${allFailedChecks.length} failed checks and ${displayedIssues.length} of ${allIssues.length} AI findings. Upgrade to access the full compliance analysis with all findings and detailed remediation steps.
+    </div>` : '';
   const execSummary = card(`
     ${h3('Executive Summary')}
     ${p(`This automated GDPR compliance scan was conducted on <strong>${esc(url)}</strong> on ${scanDate}. The scan uses a combination of rule-based automated checks and AI-powered analysis to identify potential GDPR compliance gaps.`)}
     ${p(`The overall compliance score is <strong style="color:${scoreColorVal}">${score}/100</strong>, classified as <strong>${riskLabel(risk)}</strong>.`)}
     ${p(`The automated rule engine performed ${ruleChecks.length} checks, of which <strong style="color:${SUCCESS}">${passCount} passed</strong> and <strong style="color:${FAIL}">${failCount} failed</strong>. The AI analysis identified <strong>${issueCount} additional findings</strong>${criticalIssues.length > 0 ? `, including <strong>${criticalIssues.length} critical</strong>` : ''}.`)}
     ${aiAnalysis?.summary ? p(`<strong>AI Assessment:</strong> ${esc(aiAnalysis.summary)}`) : ''}
+    ${execSummaryPreviewNote}
   `);
 
   // ── Score Breakdown ────────────────────────────────────────────────────────
@@ -222,11 +241,26 @@ export function generateReportHtml(url: string, result: ScanResult): string {
   `);
 
   // ── Automated Checks ───────────────────────────────────────────────────────
-  const passedChecks = ruleChecks.filter(c => c.passed);
-  const failedChecks = ruleChecks.filter(c => !c.passed);
+  // ── Automated Checks ────────────────────────────────────────────────────────
+  const checksUpgradeNote = !fullReport && hiddenFailedCount > 0 ? `
+    <div style="background:#eff6ff;border:1px solid ${ACCENT};border-radius:8px;padding:14px 16px;margin:16px 0;font-size:13px;color:${ACCENT};text-align:center;">
+      <strong>Upgrade to see all ${allFailedChecks.length} failed checks</strong> with full recommendations and GDPR article references.
+    </div>` : '';
+
+  const passedChecksSection = fullReport ? passedChecks.map(check => card(`
+      <div style="display:flex;align-items:flex-start;gap:12px;">
+        <div style="width:32px;height:32px;border-radius:50%;background:${SUCCESS_BG};border:2px solid ${SUCCESS};display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;"><svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#16a34a"/><path d="M7 12.5l3.5 3.5 6.5-7" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div>
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:600;color:${TEXT};margin-bottom:4px;">${esc(check.name)}</div>
+          <div style="font-size:13px;color:${TEXT_MUTED};">${esc(check.detail || 'Passed')}</div>
+          ${check.gdprArticle ? `<div style="font-size:11px;color:${ACCENT};margin-top:8px;"><svg width="11" height="11" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px"><rect x="3" y="3" width="18" height="18" rx="2" fill="#2563eb"/><path d="M8 12h8M8 8h8M8 16h4" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>${gdprArticleLabel(check.gdprArticle)}</div>` : ''}
+        </div>
+      </div>
+    `, SUCCESS_BG, SUCCESS)).join('') : `<div style="font-size:13px;color:${TEXT_MUTED};padding:8px 0;">${passedChecks.length} checks passed — <strong>upgrade to see details</strong>.</div>`;
 
   const checksSection = sectionTitle(`Automated Checks (<svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:middle"><circle cx="12" cy="12" r="11" fill="#16a34a"/><path d="M7 12.5l3.5 3.5 6.5-7" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg> ${passCount} / <svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:middle"><circle cx="12" cy="12" r="11" fill="#dc2626"/><path d="M8 8l8 8M16 8l-8 8" stroke="white" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg> ${failCount})`) +
-    failedChecks.map(check => card(`
+    checksUpgradeNote +
+    displayedFailedChecks.map(check => card(`
       <div style="display:flex;align-items:flex-start;gap:12px;">
         <div style="width:32px;height:32px;border-radius:50%;background:${FAIL_BG};border:2px solid ${FAIL};display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;"><svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#dc2626"/><path d="M8 8l8 8M16 8l-8 8" stroke="white" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg></div>
         <div style="flex:1;">
@@ -237,21 +271,19 @@ export function generateReportHtml(url: string, result: ScanResult): string {
         </div>
       </div>
     `, FAIL_BG, FAIL)).join('') +
-    passedChecks.map(check => card(`
-      <div style="display:flex;align-items:flex-start;gap:12px;">
-        <div style="width:32px;height:32px;border-radius:50%;background:${SUCCESS_BG};border:2px solid ${SUCCESS};display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;"><svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#16a34a"/><path d="M7 12.5l3.5 3.5 6.5-7" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div>
-        <div style="flex:1;">
-          <div style="font-size:14px;font-weight:600;color:${TEXT};margin-bottom:4px;">${esc(check.name)}</div>
-          <div style="font-size:13px;color:${TEXT_MUTED};">${esc(check.detail || 'Passed')}</div>
-          ${check.gdprArticle ? `<div style="font-size:11px;color:${ACCENT};margin-top:8px;"><svg width="11" height="11" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px"><rect x="3" y="3" width="18" height="18" rx="2" fill="#2563eb"/><path d="M8 12h8M8 8h8M8 16h4" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>${gdprArticleLabel(check.gdprArticle)}</div>` : ''}
-        </div>
-      </div>
-    `, SUCCESS_BG, SUCCESS)).join('');
+    (hiddenFailedCount > 0 ? `<div style="text-align:center;margin-top:8px;font-size:13px;color:${TEXT_MUTED};">+ ${hiddenFailedCount} more failed checks in full report</div>` : '') +
+    passedChecksSection;
 
   // ── AI-Detected Issues ─────────────────────────────────────────────────────
-  const aiIssuesSection = aiAnalysis?.issues?.length
-    ? sectionTitle(`AI-Detected Issues (${aiAnalysis.issues.length} Findings)`) +
-      aiAnalysis.issues.map((issue: AIIssue) => card(`
+  const aiUpgradeNote = !fullReport && hiddenIssueCount > 0 ? `
+    <div style="background:#eff6ff;border:1px solid ${ACCENT};border-radius:8px;padding:14px 16px;margin:16px 0;font-size:13px;color:${ACCENT};text-align:center;">
+      <strong>Upgrade to access all ${allIssues.length} AI findings</strong> including critical and warning severity items with full evidence and fix recommendations.
+    </div>` : '';
+
+  const aiIssuesSection = displayedIssues.length
+    ? sectionTitle(`AI-Detected Issues (${displayedIssues.length} of ${allIssues.length} Shown)`) +
+      aiUpgradeNote +
+      displayedIssues.map((issue: AIIssue) => card(`
         <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:8px;">
           <div style="width:32px;height:32px;border-radius:50%;background:${severityBg(issue.severity)};border:2px solid ${severityColor(issue.severity)};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${severityColor(issue.severity)};flex-shrink:0;">${issue.severity === 'critical' ? 'CRIT' : issue.severity === 'warning' ? 'WARN' : 'INFO'}</div>
           <div style="flex:1;">
@@ -330,18 +362,29 @@ export function generateReportHtml(url: string, result: ScanResult): string {
 
   // ── Remediation Plan ────────────────────────────────────────────────────────
   const remediationItems = [
-    ...failedChecks.map(c => ({ text: `Fix: ${esc(c.name)} — ${esc(c.recommendation || 'See recommendation above')}`, done: false })),
-    ...(aiAnalysis?.issues?.filter((i: AIIssue) => i.fix).map((i: AIIssue) => ({ text: `AI Fix: ${esc(i.title)} — ${esc(i.fix)}`, done: false })) || []),
+    ...displayedFailedChecks.map(c => ({ text: `Fix: ${esc(c.name)} — ${esc(c.recommendation || 'See recommendation above')}`, done: false })),
+    ...(displayedIssues.filter((i: AIIssue) => i.fix).map((i: AIIssue) => ({ text: `AI Fix: ${esc(i.title)} — ${esc(i.fix)}`, done: false }))),
   ];
 
-  const remediationSection = sectionTitle('Remediation Action Plan') +
-    card(`
-      <p style="margin:0 0 16px;font-size:13px;color:${TEXT_MUTED};">Use this checklist to address the findings in priority order:</p>
-      ${remediationItems.length
-        ? remediationItems.map((item: { text: string; done: boolean }) => checklistItem(item.text, item.done ? 'done' : 'todo')).join('')
-        : '<div style="color:#16a34a;font-size:14px;"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><circle cx="12" cy="12" r="11" fill="#16a34a"/><path d="M7 12.5l3.5 3.5 6.5-7" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>No remediation items — your site appears fully compliant!</div>'
-      }
-    `, WARN_BG, WARN);
+  const remediationSection = fullReport
+    ? sectionTitle('Remediation Action Plan') +
+      card(`
+        <p style="margin:0 0 16px;font-size:13px;color:${TEXT_MUTED};">Use this checklist to address the findings in priority order:</p>
+        ${remediationItems.length
+          ? remediationItems.map((item: { text: string; done: boolean }) => checklistItem(item.text, item.done ? 'done' : 'todo')).join('')
+          : '<div style="color:#16a34a;font-size:14px;"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><circle cx="12" cy="12" r="11" fill="#16a34a"/><path d="M7 12.5l3.5 3.5 6.5-7" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>No remediation items — your site appears fully compliant!</div>'
+        }
+      `, WARN_BG, WARN)
+    : sectionTitle('Remediation Action Plan') +
+      card(`
+        <div style="text-align:center;padding:16px 0;">
+          <div style="font-size:15px;font-weight:600;color:${TEXT};margin-bottom:8px;">Remediation Plan Available in Full Report</div>
+          <p style="font-size:13px;color:${TEXT_MUTED};margin:0 0 16px;">Get a complete prioritised checklist of fixes for all failed checks and AI-detected issues.</p>
+          <div style="background:#eff6ff;border:1px solid ${ACCENT};border-radius:8px;padding:12px 16px;font-size:13px;color:${ACCENT};display:inline-block;">
+            Upgrade to unlock the full remediation action plan
+          </div>
+        </div>
+      `, INFO_BG);
 
   // ── Footer ──────────────────────────────────────────────────────────────────
   const footer = `
@@ -383,3 +426,11 @@ export function generateReportHtml(url: string, result: ScanResult): string {
 </body>
 </html>`;
 }
+
+
+
+
+
+
+
+

@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
   `).run(scanId, url, email || null, sessionId || null);
 
   if (env?.MOCK_STRIPE === '1' || env?.E2E_TEST_MODE === '1') {
-    const result = buildMockScanResult(url);
+    const result = buildMockScanResult(url, true);
     await db.prepare(`
       UPDATE scans
       SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
@@ -67,6 +67,8 @@ export async function POST(request: NextRequest) {
   await sendScanJob({ scanId, url, email, trigger: 'stripe' }, env);
   return NextResponse.json({ status: 'queued', scanId });
 }
+
+
 
 
 

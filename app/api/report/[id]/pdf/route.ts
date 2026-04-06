@@ -44,7 +44,7 @@ async function hydrateMockScanIfNeeded(scanId: string, db: ReturnType<typeof get
   if (!scan) return null;
   if (scan.status === 'completed' && scan.result_json) return getScanWithResult(scanId, db);
 
-  const result = buildMockScanResult(scan.url || 'https://example.com');
+  const result = buildMockScanResult(scan.url || 'https://example.com', true);
   await db.prepare(`
     UPDATE scans
     SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
@@ -156,6 +156,7 @@ export async function GET(
 
   return generateFromResult(data.result, scanId, 'pdf', sessionId);
 }
+
 
 
 
