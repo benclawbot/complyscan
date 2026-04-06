@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'session_id required' }, { status: 400 });
   }
 
-  const env: any = getRuntimeEnv(request);
+  const env: any = getRuntimeEnv((request as any).env ?? (globalThis as any).__env ?? undefined);
   const db = getDb(env);
   const MOCK_STRIPE = env?.MOCK_STRIPE === '1' || env?.E2E_TEST_MODE === '1';
 
@@ -60,3 +60,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+

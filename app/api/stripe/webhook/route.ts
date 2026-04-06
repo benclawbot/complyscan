@@ -6,7 +6,7 @@ import { retrieveSubscription, verifyStripeWebhookSignature } from '@/lib/stripe
 
 export async function POST(request: NextRequest) {
   try {
-    const env: any = getRuntimeEnv(request);
+    const env: any = getRuntimeEnv((request as any).env ?? (globalThis as any).__env ?? undefined);
     const stripeSecrets = getStripeSecrets(request as any);
     if (!stripeSecrets || !stripeSecrets.STRIPE_WEBHOOK_SECRET) {
       return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 });
@@ -167,3 +167,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal error', detail: err.message }, { status: 500 });
   }
 }
+
