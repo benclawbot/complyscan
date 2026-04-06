@@ -26,6 +26,14 @@ export async function POST(request: NextRequest) {
       runtimeEnv?.MOCK_STRIPE === '1' ||
       process.env?.MOCK_STRIPE === '1';
 
+    // DEBUG: log env state
+    console.log('DEBUG MOCK_STRIPE check:', {
+      runtimeMock: runtimeEnv?.MOCK_STRIPE,
+      processMock: process.env?.MOCK_STRIPE,
+      result: MOCK_STRIPE,
+      runtimeKeys: runtimeEnv ? Object.keys(runtimeEnv).filter(k => ['MOCK_STRIPE','E2E_TEST_MODE','STRIPE_SECRET_KEY'].includes(k)) : [],
+    });
+
     if (MOCK_STRIPE) {
       const db = getDb(runtimeEnv);
       const sessionId = `mock_${normalizedPlan}_${scanId}`;
@@ -137,6 +145,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: err?.message || 'Checkout failed' }, { status: 500 });
   }
 }
+
 
 
 
