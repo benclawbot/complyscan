@@ -68,27 +68,14 @@ export default function ReportPage() {
     };
   }, [scanId, sessionId]);
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = () => {
     const params = new URLSearchParams();
     if (sessionId) params.set('session_id', sessionId);
     if (token) params.set('token', token);
     const suffix = params.toString() ? `?${params.toString()}` : '';
     const href = `/api/report/${encodeURIComponent(scanId || '')}/pdf${suffix}`;
-
-    const response = await fetch(href);
-    if (!response.ok) {
-      throw new Error('Failed to download PDF');
-    }
-
-    const blob = await response.blob();
-    const objectUrl = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = objectUrl;
-    link.download = `GDPR-Report-${(scanId || 'report').slice(0, 12)}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(objectUrl);
+    // Use window.open so the browser handles the Content-Disposition attachment download
+    window.open(href, '_blank');
   };
 
   if (status === 'error') {
@@ -163,5 +150,6 @@ export default function ReportPage() {
     </div>
   );
 }
+
 
 

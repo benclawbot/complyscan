@@ -19,19 +19,33 @@ export default function SuccessClient() {
   useEffect(() => {
     if (!sessionId || plan !== 'monthly') return;
 
-    fetch(`/api/stripe/session?session_id=${encodeURIComponent(sessionId)}`)
-      .then(async (res) => {
-        if (!res.ok) return { subscriberToken: null, customerEmail: null };
-        return await res.json() as { subscriberToken?: string; customerEmail?: string };
-      })
-      .then((data) => {
-        if (data?.subscriberToken) {
-          setSubscriberToken(data.subscriberToken);
-          document.cookie = `session_token=${encodeURIComponent(data.subscriberToken)}; path=/; SameSite=Lax`;
-        }
-        if (data?.customerEmail) setCustomerEmail(data.customerEmail);
-      })
-      .catch(() => {});
+    // Poll for the subscriber token — in real Stripe mode the webhook fires asynchronously
+    let attempts = 0;
+    const poll = () => {
+      fetch(`/api/stripe/session?session_id=${encodeURIComponent(sessionId)}`)
+        .then(async (res) => {
+          if (!res.ok) return { subscriberToken: null, customerEmail: null };
+          return await res.json() as { subscriberToken?: string; customerEmail?: string };
+        })
+        .then((data) => {
+          if (data?.subscriberToken) {
+            setSubscriberToken(data.subscriberToken);
+            document.cookie = `session_token=${encodeURIComponent(data.subscriberToken)}; path=/; SameSite=Lax`;
+          } else if (data?.customerEmail) {
+            setCustomerEmail(data.customerEmail);
+          } else if (attempts < 20) {
+            attempts += 1;
+            setTimeout(poll, 1500);
+          }
+        })
+        .catch(() => {
+          if (attempts < 20) {
+            attempts += 1;
+            setTimeout(poll, 1500);
+          }
+        });
+    };
+    poll();
   }, [sessionId, plan]);
 
   useEffect(() => {
@@ -121,3 +135,4 @@ export default function SuccessClient() {
     </div>
   );
 }
+
