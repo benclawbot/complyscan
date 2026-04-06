@@ -29,6 +29,10 @@ jobs:
         run: npm run build
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_PRICE_PDF_REPORT: ${{ secrets.STRIPE_PRICE_PDF_REPORT }}
+          STRIPE_PRICE_MONTHLY: ${{ secrets.STRIPE_PRICE_MONTHLY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
 
       - name: Remove build cache artifacts
         run: rm -rf .next/cache
@@ -37,6 +41,19 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler pages deploy .open-next --project-name complyscan --branch main
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_PRICE_PDF_REPORT: ${{ secrets.STRIPE_PRICE_PDF_REPORT }}
+          STRIPE_PRICE_MONTHLY: ${{ secrets.STRIPE_PRICE_MONTHLY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+        run: |
+          npx wrangler pages deploy .open-next --project-name complyscan --branch main
+          echo "Setting Stripe runtime secrets..."
+          echo "$STRIPE_SECRET_KEY" | npx wrangler pages secret put STRIPE_SECRET_KEY --project complyscan
+          echo "$STRIPE_PRICE_PDF_REPORT" | npx wrangler pages secret put STRIPE_PRICE_PDF_REPORT --project complyscan
+          echo "$STRIPE_PRICE_MONTHLY" | npx wrangler pages secret put STRIPE_PRICE_MONTHLY --project complyscan
+          echo "$STRIPE_WEBHOOK_SECRET" | npx wrangler pages secret put STRIPE_WEBHOOK_SECRET --project complyscan
+
+
+
 
 
