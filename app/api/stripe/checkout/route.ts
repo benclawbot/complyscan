@@ -19,10 +19,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://127.0.0.1:3000';
-    const scanId = existingScanId || uuidv4();
-
     const runtimeEnv: any = getRuntimeEnv((request as any).env ?? (globalThis as any).__env ?? undefined);
+    const appUrl = runtimeEnv?.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://complyscan.pages.dev';
+    const scanId = existingScanId || uuidv4();
     const MOCK_STRIPE =
       runtimeEnv?.MOCK_STRIPE === '1' ||
       runtimeEnv?.E2E_TEST_MODE === '1' ||
@@ -140,5 +139,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: err?.message || 'Checkout failed' }, { status: 500 });
   }
 }
+
 
 
