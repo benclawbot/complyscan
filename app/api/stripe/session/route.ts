@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 
   const env: any = getRuntimeEnv((request as any).env ?? (globalThis as any).__env ?? undefined);
   const db = getDb(env);
-  const MOCK_STRIPE = env?.MOCK_STRIPE === '1' || env?.E2E_TEST_MODE === '1';
+  const MOCK_STRIPE = env?.MOCK_STRIPE === '1';
 
   if (MOCK_STRIPE && sessionId.startsWith('mock_monthly_')) {
     const subscriber = await db.prepare('SELECT id, email FROM subscribers WHERE stripe_customer_id = ?').get(sessionId) as any;
@@ -60,4 +60,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
 

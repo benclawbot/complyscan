@@ -24,9 +24,7 @@ export async function POST(request: NextRequest) {
     const scanId = existingScanId || uuidv4();
     const MOCK_STRIPE =
       runtimeEnv?.MOCK_STRIPE === '1' ||
-      runtimeEnv?.E2E_TEST_MODE === '1' ||
-      process.env?.MOCK_STRIPE === '1' ||
-      process.env?.E2E_TEST_MODE === '1';
+      process.env?.MOCK_STRIPE === '1';
 
     if (MOCK_STRIPE) {
       const db = getDb(runtimeEnv);
@@ -139,6 +137,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: err?.message || 'Checkout failed' }, { status: 500 });
   }
 }
+
 
 
 
