@@ -41,13 +41,30 @@ export interface StripeSecrets {
 
 export function getStripeSecrets(env?: any): StripeSecrets | null {
   const runtimeEnv = getRuntimeEnv(env);
-  const stripeKey = runtimeEnv?.STRIPE_SECRET_KEY ?? (globalThis as any).__env?.STRIPE_SECRET_KEY;
+  const processEnv = typeof process !== 'undefined' ? process.env : undefined;
+
+  const stripeKey =
+    runtimeEnv?.STRIPE_SECRET_KEY ??
+    (globalThis as any).__env?.STRIPE_SECRET_KEY ??
+    processEnv?.STRIPE_SECRET_KEY;
+
   if (!stripeKey) return null;
+
   return {
     STRIPE_SECRET_KEY: stripeKey,
-    STRIPE_WEBHOOK_SECRET: runtimeEnv?.STRIPE_WEBHOOK_SECRET ?? (globalThis as any).__env?.STRIPE_WEBHOOK_SECRET,
-    STRIPE_PRICE_PDF_REPORT: runtimeEnv?.STRIPE_PRICE_PDF_REPORT ?? (globalThis as any).__env?.STRIPE_PRICE_PDF_REPORT,
-    STRIPE_PRICE_MONTHLY: runtimeEnv?.STRIPE_PRICE_MONTHLY ?? (globalThis as any).__env?.STRIPE_PRICE_MONTHLY,
+    STRIPE_WEBHOOK_SECRET:
+      runtimeEnv?.STRIPE_WEBHOOK_SECRET ??
+      (globalThis as any).__env?.STRIPE_WEBHOOK_SECRET ??
+      processEnv?.STRIPE_WEBHOOK_SECRET,
+    STRIPE_PRICE_PDF_REPORT:
+      runtimeEnv?.STRIPE_PRICE_PDF_REPORT ??
+      (globalThis as any).__env?.STRIPE_PRICE_PDF_REPORT ??
+      processEnv?.STRIPE_PRICE_PDF_REPORT ??
+      processEnv?.STRIPE_PRICE_SINGLE_SCAN,
+    STRIPE_PRICE_MONTHLY:
+      runtimeEnv?.STRIPE_PRICE_MONTHLY ??
+      (globalThis as any).__env?.STRIPE_PRICE_MONTHLY ??
+      processEnv?.STRIPE_PRICE_MONTHLY,
   };
 }
 
@@ -303,4 +320,5 @@ export async function sendScanJob(job: { scanId: string; url: string; email?: st
   if (!runtimeEnv?.SCAN_QUEUE) return;
   await runtimeEnv.SCAN_QUEUE.send(job);
 }
+
 
