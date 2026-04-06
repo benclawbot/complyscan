@@ -95,7 +95,7 @@ git push -u origin main
    RESEND_API_KEY=***
 
    # App
-   NEXT_PUBLIC_APP_URL=https://your-project.pages.dev
+   NEXT_PUBLIC_APP_URL=https://complyscan.pages.dev
    DATABASE_PATH=/tmp/complyscan.db
 
    # Crawling
@@ -125,7 +125,7 @@ Then on Stripe dashboard:
 
 After deploying, update the env var on Cloudflare Pages:
 ```
-NEXT_PUBLIC_APP_URL = https://your-project.pages.dev
+NEXT_PUBLIC_APP_URL = https://complyscan.pages.dev
 ```
 Trigger a new deployment to apply.
 

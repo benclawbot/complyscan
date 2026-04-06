@@ -76,7 +76,7 @@ export async function subscribeToNurture({
             Subject: 'Your GDPR scan is ready — here\'s what to expect',
             Variables: {
               first_name: firstName || 'there',
-              scan_url: scanUrl || 'https://complyscan.ch',
+              scan_url: scanUrl || (process.env.NEXT_PUBLIC_APP_URL || 'https://complyscan.pages.dev'),
             },
           },
         ],

@@ -152,7 +152,7 @@ export async function GET(request: NextRequest) {
             Scan a website free →
           </div>
           <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>
-            complyscan.ch
+            complyscan.pages.dev
           </div>
         </div>
       </div>

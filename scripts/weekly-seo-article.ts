@@ -47,7 +47,7 @@ const ARTICLE_QUEUE: ArticleSpec[] = [
     angle:
       'Rule-based tools check boxes. AI tools understand context. We put ComplyScan\'s AI analysis head-to-head with competitors to see which actually finds the most issues.',
     ctaText: 'Run a free AI GDPR scan',
-    ctaUrl: 'https://complyscan.ch',
+    ctaUrl: 'https://complyscan.pages.dev',
   },
   {
     slug: 'gdpr-scanner-pdf-report',
@@ -63,7 +63,7 @@ const ARTICLE_QUEUE: ArticleSpec[] = [
     angle:
       'A verbal report fades. A PDF you can share with your lawyer, boss, or client is actionable. ComplyScan is the only free GDPR tool that delivers a professional PDF report.',
     ctaText: 'Get your free PDF GDPR report',
-    ctaUrl: 'https://complyscan.ch',
+    ctaUrl: 'https://complyscan.pages.dev',
   },
   {
     slug: 'gdpr-compliance-for-web-agencies',
@@ -79,7 +79,7 @@ const ARTICLE_QUEUE: ArticleSpec[] = [
     angle:
       'GDPR compliance is a recurring revenue opportunity for agencies — not just a liability. ComplyScan\'s Agency plan is built for exactly this.',
     ctaText: 'Start with 3 free client scans',
-    ctaUrl: 'https://complyscan.ch',
+    ctaUrl: 'https://complyscan.pages.dev',
   },
   {
     slug: 'gdpr-fines-small-business-risk',
@@ -95,7 +95,7 @@ const ARTICLE_QUEUE: ArticleSpec[] = [
     angle:
       'Most articles cite the maximum fine. We look at median enforcement actions against small businesses specifically — and what triggers them.',
     ctaText: 'Check your risk for free',
-    ctaUrl: 'https://complyscan.ch',
+    ctaUrl: 'https://complyscan.pages.dev',
   },
   {
     slug: 'gdpr-scanner-vs-cookie-banner',
@@ -111,7 +111,7 @@ const ARTICLE_QUEUE: ArticleSpec[] = [
     angle:
       'Many businesses think a cookie banner = GDPR compliance. It doesn\'t. This article explains the difference clearly and positions ComplyScan as the comprehensive solution.',
     ctaText: 'Scan your website now',
-    ctaUrl: 'https://complyscan.ch',
+    ctaUrl: 'https://complyscan.pages.dev',
   },
   {
     slug: 'gdpr-remediation-guide',
@@ -127,7 +127,7 @@ const ARTICLE_QUEUE: ArticleSpec[] = [
     angle:
       'ComplyScan finds the issues. This guide fixes them. The combination is the only fullsolution on the market — and it\'s free.',
     ctaText: 'Run your free GDPR scan first',
-    ctaUrl: 'https://complyscan.ch',
+    ctaUrl: 'https://complyscan.pages.dev',
   },
 ];
 
@@ -516,3 +516,4 @@ main().catch((err) => {
   console.error('Article writer failed:', err);
   process.exit(1);
 });
+

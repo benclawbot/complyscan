@@ -86,14 +86,14 @@ async function main() {
         <li>No process for handling data subject rights requests</li>
       </ol>
       <div style="text-align:center;margin:32px 0;">
-        <a href="https://complyscan.ch/blog/is-my-website-gdpr-compliant"
+        <a href="https://complyscan.pages.dev/blog/is-my-website-gdpr-compliant"
            style="display:inline-block;background:#2563eb;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">
           Read the GDPR guide →
         </a>
       </div>
       <p style="color:#64748b;font-size:13px;text-align:center;margin:0;">
         ComplyScan — GDPR compliance made effortless<br/>
-        <a href="https://complyscan.ch" style="color:#2563eb;">complyscan.ch</a>
+        <a href="https://complyscan.pages.dev" style="color:#2563eb;">complyscan.pages.dev</a>
       </p>
     </div>
   </div>
@@ -138,14 +138,14 @@ async function main() {
         <p style="color:#94a3b8;font-size:13px;margin:4px 0 0;">If you use Mailchimp, Stripe, Google Analytics, etc., you need signed DPAs with each.</p>
       </div>
       <div style="text-align:center;margin:32px 0;">
-        <a href="https://complyscan.ch/blog/gdpr-compliance-checklist"
+        <a href="https://complyscan.pages.dev/blog/gdpr-compliance-checklist"
            style="display:inline-block;background:#2563eb;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">
           Run a free GDPR scan →
         </a>
       </div>
       <p style="color:#64748b;font-size:13px;text-align:center;margin:0;">
         ComplyScan — GDPR compliance made effortless<br/>
-        <a href="https://complyscan.ch" style="color:#2563eb;">complyscan.ch</a>
+        <a href="https://complyscan.pages.dev" style="color:#2563eb;">complyscan.pages.dev</a>
       </p>
     </div>
   </div>
@@ -182,14 +182,14 @@ async function main() {
         <p style="color:#94a3b8;font-size:13px;margin:0;">Manage all client scans in one place. Track remediation over time.</p>
       </div>
       <div style="text-align:center;margin:32px 0;">
-        <a href="https://complyscan.ch/#pricing"
+        <a href="https://complyscan.pages.dev/#pricing"
            style="display:inline-block;background:#2563eb;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">
           View Agency plan →
         </a>
       </div>
       <p style="color:#64748b;font-size:13px;text-align:center;margin:0;">
         €99/month — 3 client sites free to start<br/>
-        <a href="https://complyscan.ch" style="color:#2563eb;">complyscan.ch</a>
+        <a href="https://complyscan.pages.dev" style="color:#2563eb;">complyscan.pages.dev</a>
       </p>
     </div>
   </div>
@@ -228,3 +228,5 @@ main().catch((err) => {
   console.error('Setup failed:', err.message);
   process.exit(1);
 });
+
+

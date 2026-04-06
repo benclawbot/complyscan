@@ -32,11 +32,7 @@ export async function POST(request: NextRequest, { params: _params }: { params: 
       return NextResponse.json({ notFound: true }, { status: 200 });
     }
 
-    // NEXT_PUBLIC_APP_URL must be set in Cloudflare Pages environment variables
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-    if (!appUrl) {
-      return NextResponse.json({ error: 'NEXT_PUBLIC_APP_URL not configured' }, { status: 500 });
-    }
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://complyscan.pages.dev';
     const dashboardUrl = `${appUrl}/dashboard?token=${tokenRecord.token}`;
 
     return NextResponse.json({ dashboardUrl });
@@ -45,4 +41,5 @@ export async function POST(request: NextRequest, { params: _params }: { params: 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
 

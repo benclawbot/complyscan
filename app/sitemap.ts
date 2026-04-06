@@ -1,6 +1,6 @@
 import { MetadataRoute } from 'next';
 
-const BASE_URL = 'https://complyscan.ch';
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://complyscan.pages.dev';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const staticPages: MetadataRoute.Sitemap = [
