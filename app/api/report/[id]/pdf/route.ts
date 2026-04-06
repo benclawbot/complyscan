@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb, parseResultJson, getStripeSecrets } from '@/lib/env';
+import { getDb, getRuntimeEnv, parseResultJson, getStripeSecrets } from '@/lib/env';
 import { getBearerToken, verifySubscriberToken } from '@/lib/auth';
 import { retrieveCheckoutSession } from '@/lib/stripe-api';
+import { buildMockScanResult } from '@/lib/mock-scan';
 
 async function getScanWithResult(scanId: string, db: ReturnType<typeof getDb>) {
   const scan = await db.prepare('SELECT * FROM scans WHERE id = ?').get(scanId) as any;
@@ -9,6 +10,21 @@ async function getScanWithResult(scanId: string, db: ReturnType<typeof getDb>) {
   const result = await parseResultJson(scan.result_json);
   if (!result) return null;
   return { scan, result };
+}
+
+async function hydrateMockScanIfNeeded(scanId: string, db: ReturnType<typeof getDb>, sessionId: string | null) {
+  if (!sessionId?.startsWith('mock_pdf_')) return null;
+  const scan = await db.prepare('SELECT * FROM scans WHERE id = ?').get(scanId) as any;
+  if (!scan) return null;
+  if (scan.status === 'completed' && scan.result_json) return getScanWithResult(scanId, db);
+
+  const result = buildMockScanResult(scan.url || 'https://example.com');
+  await db.prepare(`
+    UPDATE scans
+    SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+    WHERE id = ?
+  `).run(JSON.stringify(result), scanId);
+  return getScanWithResult(scanId, db);
 }
 
 async function isSubscriberAuthorized(request: NextRequest, db: ReturnType<typeof getDb>, scanId: string) {
@@ -20,10 +36,10 @@ async function isSubscriberAuthorized(request: NextRequest, db: ReturnType<typeo
   return Boolean(scan?.subscriber_id && scan.subscriber_id === subscriber.subscriber_id);
 }
 
-async function isPaidSessionValid(sessionId: string | null, scanId: string, env: any) {
+async function isPaidSessionValid(request: NextRequest, sessionId: string | null, scanId: string) {
   if (!sessionId) return false;
   if (sessionId.startsWith('mock_pdf_')) return sessionId.endsWith(scanId);
-  const stripeSecrets = getStripeSecrets(env);
+  const stripeSecrets = getStripeSecrets(request as any);
   if (!stripeSecrets) return false;
 
   try {
@@ -34,7 +50,7 @@ async function isPaidSessionValid(sessionId: string | null, scanId: string, env:
   }
 }
 
-async function generateFromResult(result: any, scanId: string, format: string, _env: any) {
+async function generateFromResult(result: any, scanId: string, format: string) {
   const url = result?.crawl?.url || result?.url || '';
 
   if (format === 'html') {
@@ -79,7 +95,7 @@ export async function POST(
     return NextResponse.json({ error: 'POST PDF generation is not allowed' }, { status: 403 });
   }
 
-  return generateFromResult(result, scanId, 'html', (request as any).env ?? (globalThis as any).__env ?? undefined);
+  return generateFromResult(result, scanId, 'html');
 }
 
 export async function GET(
@@ -90,28 +106,26 @@ export async function GET(
   const { searchParams } = new URL(request.url);
   const format = searchParams.get('format') || 'pdf';
   const sessionId = searchParams.get('session_id');
-  const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
+  const env: any = getRuntimeEnv((request as any).env ?? (globalThis as any).__env ?? undefined);
   const db = getDb(env);
 
-  const data = await getScanWithResult(scanId, db);
+  let data = await getScanWithResult(scanId, db);
+  if (!data) {
+    data = await hydrateMockScanIfNeeded(scanId, db, sessionId);
+  }
   if (!data) {
     return NextResponse.json({ error: 'Report not ready. Scan may still be processing.' }, { status: 404 });
   }
 
   if (format === 'html') {
-    return generateFromResult(data.result, scanId, 'html', env);
+    return generateFromResult(data.result, scanId, 'html');
   }
 
   const subscriberAuthorized = await isSubscriberAuthorized(request, db, scanId);
-  const paidSessionAuthorized = await isPaidSessionValid(sessionId, scanId, env);
+  const paidSessionAuthorized = await isPaidSessionValid(request, sessionId, scanId);
   if (!subscriberAuthorized && !paidSessionAuthorized) {
     return NextResponse.json({ error: 'PDF not purchased. Please upgrade to access the full report.' }, { status: 403 });
   }
 
-  return generateFromResult(data.result, scanId, 'pdf', env);
+  return generateFromResult(data.result, scanId, 'pdf');
 }
-
-
-
-
-
