@@ -34,3 +34,4 @@ Thumbs.db
 /test-results/
 /tests/.playwright-report/
 /playwright-report/
+.vercel
