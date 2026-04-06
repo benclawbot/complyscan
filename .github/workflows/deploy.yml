@@ -33,6 +33,7 @@ jobs:
           STRIPE_PRICE_PDF_REPORT: ${{ secrets.STRIPE_PRICE_PDF_REPORT }}
           STRIPE_PRICE_MONTHLY: ${{ secrets.STRIPE_PRICE_MONTHLY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          MOCK_STRIPE: ""
 
       - name: Remove build cache artifacts
         run: rm -rf .next/cache
@@ -52,6 +53,7 @@ jobs:
           echo "$STRIPE_PRICE_PDF_REPORT" | npx wrangler pages secret put STRIPE_PRICE_PDF_REPORT --project complyscan
           echo "$STRIPE_PRICE_MONTHLY" | npx wrangler pages secret put STRIPE_PRICE_MONTHLY --project complyscan
           echo "$STRIPE_WEBHOOK_SECRET" | npx wrangler pages secret put STRIPE_WEBHOOK_SECRET --project complyscan
+
 
 
 
