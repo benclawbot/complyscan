@@ -4,6 +4,7 @@ import { Check } from "lucide-react";
 import { useState } from "react";
 import { RevealSection } from "./ui/RevealSection";
 import { SampleReportPreview } from "./ui/SampleReportPreview";
+import { CheckoutModal } from "./ui/CheckoutModal";
 
 const plans = [
   {
@@ -72,20 +73,23 @@ const plans = [
 
 export function Pricing() {
   const [loading, setLoading] = useState<string | null>(null);
+  const [checkoutModal, setCheckoutModal] = useState<"pdf" | "monthly" | null>(null);
 
   const handleCheckout = async (plan: "pdf" | "monthly") => {
+    setCheckoutModal(plan);
+  };
+
+  const handleCheckoutConfirm = async (url?: string) => {
+    setCheckoutModal(null);
+    const plan = checkoutModal;
+    if (!plan) return;
+
     setLoading(plan);
 
     try {
-      let payload: { url?: string; email?: string; plan: "pdf" | "monthly" } = { plan };
-
-      if (plan === "pdf") {
-        const enteredUrl = window.prompt("Enter the website URL for your PDF report", "https://example.com")?.trim();
-        if (!enteredUrl) {
-          setLoading(null);
-          return;
-        }
-        payload = { plan, url: enteredUrl };
+      const payload: { url?: string; plan: "pdf" | "monthly" } = { plan };
+      if (plan === "pdf" && url) {
+        payload.url = url;
       }
 
       const res = await fetch("/api/stripe/checkout", {
@@ -115,7 +119,15 @@ export function Pricing() {
   };
 
   return (
-    <section id="pricing" className="py-28 px-4 relative">
+    <>
+      {checkoutModal && (
+        <CheckoutModal
+          plan={checkoutModal}
+          onConfirm={handleCheckoutConfirm}
+          onCancel={() => setCheckoutModal(null)}
+        />
+      )}
+      <section id="pricing" className="py-28 px-4 relative">
       {/* Background */}
       <div className="absolute inset-0 bg-gradient-to-b from-midnight-light/20 via-midnight to-midnight pointer-events-none" />
 
@@ -224,5 +236,10 @@ export function Pricing() {
         </RevealSection>
       </div>
     </section>
+    </>
   );
 }
+
+
+
+
