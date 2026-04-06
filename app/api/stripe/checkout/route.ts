@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
-import { getDb, getStripeSecrets } from '@/lib/env';
+import { getDb, getRuntimeEnv, getStripeSecrets } from '@/lib/env';
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,12 +22,15 @@ export async function POST(request: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://127.0.0.1:3000';
     const scanId = existingScanId || uuidv4();
 
-    const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
-    const MOCK_STRIPE = env?.MOCK_STRIPE === '1' || env?.E2E_TEST_MODE === '1' || process.env?.MOCK_STRIPE === '1' || process.env?.E2E_TEST_MODE === '1';
+    const runtimeEnv: any = getRuntimeEnv(request);
+    const db = getDb(runtimeEnv);
+    const MOCK_STRIPE =
+      runtimeEnv?.MOCK_STRIPE === '1' ||
+      runtimeEnv?.E2E_TEST_MODE === '1' ||
+      process.env?.MOCK_STRIPE === '1' ||
+      process.env?.E2E_TEST_MODE === '1';
 
     if (MOCK_STRIPE) {
-      const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
-      const db = getDb(env);
       const sessionId = `mock_${normalizedPlan}_${scanId}`;
 
       if (normalizedPlan === 'monthly') {
@@ -65,7 +68,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const stripeSecrets = getStripeSecrets(env);
+    const stripeSecrets = getStripeSecrets(request as any);
     if (!stripeSecrets) {
       return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 });
     }
@@ -111,7 +114,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: customer.error?.message || 'Customer creation failed' }, { status: 500 });
       }
       params.append('customer', customer.id);
-      // Remove customer_email since customer is now set — Stripe doesn't allow both
       params.delete('customer_email');
       params.append('subscription_data[metadata][plan]', 'agency');
       params.append('subscription_data[metadata][scanId]', scanId);
@@ -138,9 +140,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: err?.message || 'Checkout failed' }, { status: 500 });
   }
 }
-
-
-
-
-
-

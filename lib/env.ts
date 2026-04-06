@@ -29,6 +29,19 @@ function getCloudflareContextEnv(): any {
 }
 
 export function getRuntimeEnv(env?: any): any {
+  if (
+    env &&
+    typeof env === 'object' &&
+    !('DB' in env) &&
+    !('STRIPE_SECRET_KEY' in env) &&
+    !('SCAN_QUEUE' in env) &&
+    !('REPORTS_BUCKET' in env) &&
+    'env' in env &&
+    (env as any).env
+  ) {
+    return (env as any).env;
+  }
+
   return env ?? (globalThis as any).__env ?? getCloudflareContextEnv() ?? undefined;
 }
 
@@ -320,5 +333,6 @@ export async function sendScanJob(job: { scanId: string; url: string; email?: st
   if (!runtimeEnv?.SCAN_QUEUE) return;
   await runtimeEnv.SCAN_QUEUE.send(job);
 }
+
 
 

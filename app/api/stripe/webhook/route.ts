@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
-import { getDb, getStripeSecrets } from '@/lib/env';
+import { getDb, getRuntimeEnv, getStripeSecrets } from '@/lib/env';
 import { retrieveSubscription, verifyStripeWebhookSignature } from '@/lib/stripe-api';
 
 export async function POST(request: NextRequest) {
   try {
-    const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
-    const stripeSecrets = getStripeSecrets(env);
+    const env: any = getRuntimeEnv(request);
+    const stripeSecrets = getStripeSecrets(request as any);
     if (!stripeSecrets || !stripeSecrets.STRIPE_WEBHOOK_SECRET) {
       return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 });
     }
@@ -25,7 +25,6 @@ export async function POST(request: NextRequest) {
     }
 
     const event = JSON.parse(body) as any;
-
     const db = getDb(env);
 
     switch (event.type) {
@@ -168,15 +167,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal error', detail: err.message }, { status: 500 });
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-

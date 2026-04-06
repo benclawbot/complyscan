@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb, getStripeSecrets } from '@/lib/env';
+import { getDb, getRuntimeEnv, getStripeSecrets } from '@/lib/env';
 import { retrieveCheckoutSession } from '@/lib/stripe-api';
 
 export async function GET(request: NextRequest) {
@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'session_id required' }, { status: 400 });
   }
 
-  const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
+  const env: any = getRuntimeEnv(request);
   const db = getDb(env);
   const MOCK_STRIPE = env?.MOCK_STRIPE === '1' || env?.E2E_TEST_MODE === '1';
 
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const stripeSecrets = getStripeSecrets(env);
+  const stripeSecrets = getStripeSecrets(request as any);
   if (!stripeSecrets) {
     return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 });
   }
@@ -60,5 +60,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
-
-
