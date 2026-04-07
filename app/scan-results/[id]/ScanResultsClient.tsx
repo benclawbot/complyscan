@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CheckCircle, XCircle, AlertTriangle, FileText, RefreshCw, Lock } from "lucide-react";
+import { CheckCircle, XCircle, AlertTriangle, FileText, RefreshCw, Lock, Zap } from "lucide-react";
 
 interface Props {
   scanId: string;
@@ -152,7 +152,6 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
   const [result, setResult] = useState(initialResult ? toLimitedPreview(initialResult) : null);
   const [url, setUrl] = useState(initialUrl || "");
   const [email, setEmail] = useState(initialEmail || null);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [accountEmail, setAccountEmail] = useState(initialEmail || "");
@@ -211,13 +210,13 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
     };
   }, [initialResult, scanId]);
 
-  const handlePurchasePDF = async () => {
+  const handleUpgradeToAgency = async () => {
     setLoading(true);
     try {
       const res = await fetch('/api/stripe/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, email, plan: 'pdf', scanId }),
+        body: JSON.stringify({ url, email, plan: 'monthly' }),
       });
       const data = await res.json() as { url?: string; error?: string };
       if (data.url) {
@@ -276,7 +275,7 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
           <div className="mb-6 bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 text-sm text-amber-200 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 mt-0.5 shrink-0" />
             <span>
-              <strong>Free preview.</strong> Showing top issues only. <button onClick={() => setShowUpgradeModal(true)} className="underline hover:no-underline font-medium">Upgrade</button> to unlock fixes, AI analysis, and the PDF.
+              <strong>Free preview.</strong> Showing top issues only. <a href="/#pricing" className="underline hover:no-underline font-medium">Upgrade</a> to unlock unlimited scans and full reports.
             </span>
           </div>
         )}
@@ -308,10 +307,10 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
                 {email && <p className="text-white/30 text-xs mt-1">Email: {email}</p>}
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setShowUpgradeModal(true)} className="rounded-lg bg-accent-blue px-5 py-2.5 font-semibold text-white hover:bg-accent-glow transition-all text-sm flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
-                  Get Full PDF Report
-                </button>
+                <Link href="/#pricing" className="rounded-lg bg-accent-blue px-5 py-2.5 font-semibold text-white hover:bg-accent-glow transition-all text-sm flex items-center gap-2">
+                  <Zap className="w-4 h-4" />
+                  Upgrade to Agency
+                </Link>
                 <Link href="/" className="rounded-lg bg-white/10 px-5 py-2.5 font-semibold text-white hover:bg-white/20 transition-all text-sm">Scan Another</Link>
               </div>
             </div>
@@ -335,32 +334,18 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
 
             <div id="upgrade-prompt" className="bg-gradient-to-r from-accent-blue/20 via-midnight-light to-midnight-light border border-accent-blue/30 rounded-2xl p-8 text-center">
               <Lock className="w-8 h-8 text-accent-blue mx-auto mb-3" />
-              <h3 className="text-xl font-bold text-white mb-2">Unlock the Full Report</h3>
+              <h3 className="text-xl font-bold text-white mb-2">Unlock Unlimited Scans</h3>
               <p className="text-white/50 text-sm mb-6 max-w-md mx-auto">
-                Get the complete PDF report with detailed fixes, executive summary, and AI analysis for <span className="text-white font-semibold">$29</span>.
+                Get unlimited compliance scans and full report access for your entire client portfolio.
               </p>
-              <button onClick={handlePurchasePDF} disabled={loading} className="rounded-lg bg-accent-blue px-8 py-3 font-semibold text-white hover:bg-accent-glow transition-all shadow-lg shadow-accent-blue/30 disabled:opacity-50 disabled:cursor-not-allowed">
-                {loading ? "Redirecting..." : "Get PDF Report — $29"}
+              <button onClick={handleUpgradeToAgency} disabled={loading} className="rounded-lg bg-accent-blue px-8 py-3 font-semibold text-white hover:bg-accent-glow transition-all shadow-lg shadow-accent-blue/30 disabled:opacity-50 disabled:cursor-not-allowed">
+                {loading ? "Redirecting..." : "Start Agency Plan — $99/mo"}
               </button>
-              <p className="text-white/30 text-xs mt-3">Secure payment via Stripe · Instant delivery</p>
+              <p className="text-white/30 text-xs mt-3">Secure payment via Stripe · Cancel anytime</p>
             </div>
           </>
         )}
       </main>
-
-      {showUpgradeModal && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setShowUpgradeModal(false)}>
-          <div className="bg-midnight-light border border-white/20 rounded-2xl p-8 max-w-md w-full" onClick={e => e.stopPropagation()}>
-            <Lock className="w-8 h-8 text-accent-blue mx-auto mb-3" />
-            <h3 className="text-xl font-bold text-white mb-2 text-center">Unlock Full PDF Report</h3>
-            <p className="text-white/50 text-sm mb-6 text-center">Complete report with legal references, detailed fix guides, and executive summary for $29.</p>
-            <button onClick={handlePurchasePDF} disabled={loading} className="w-full rounded-lg bg-accent-blue py-3 font-semibold text-white hover:bg-accent-glow transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-              {loading ? "Redirecting..." : "Continue to Payment — $29"}
-            </button>
-            <button onClick={() => setShowUpgradeModal(false)} className="w-full mt-3 text-center text-white/30 text-sm hover:text-white/60 transition-colors">Maybe later</button>
-          </div>
-        </div>
-      )}
 
       {showAccountModal && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setShowAccountModal(false)}>
@@ -400,6 +385,13 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
     </div>
   );
 }
+
+
+
+
+
+
+
 
 
 

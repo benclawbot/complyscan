@@ -35,10 +35,8 @@ export async function GET(request: NextRequest) {
       globalEnvPresent: Boolean((globalThis as any).__env),
       cloudflareContextPresent: Boolean(cloudflareContextEnv),
       processStripeSecret: Boolean(process.env.STRIPE_SECRET_KEY),
-      processStripePdfPrice: Boolean(process.env.STRIPE_PRICE_PDF_REPORT || process.env.STRIPE_PRICE_SINGLE_SCAN),
       processStripeMonthlyPrice: Boolean(process.env.STRIPE_PRICE_MONTHLY),
       resolvedStripeSecret: Boolean(stripeSecrets?.STRIPE_SECRET_KEY),
-      resolvedStripePdfPrice: Boolean(stripeSecrets?.STRIPE_PRICE_PDF_REPORT),
       resolvedStripeMonthlyPrice: Boolean(stripeSecrets?.STRIPE_PRICE_MONTHLY),
     },
     errors: {
@@ -47,5 +45,6 @@ export async function GET(request: NextRequest) {
     workerHealthUrl: 'https://compliance-checker-scan-processor.benclawbot.workers.dev/health',
   });
 }
+
 
 

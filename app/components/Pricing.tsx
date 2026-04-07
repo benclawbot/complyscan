@@ -4,7 +4,6 @@ import { Check } from "lucide-react";
 import { useState } from "react";
 import { RevealSection } from "./ui/RevealSection";
 import { SampleReportPreview } from "./ui/SampleReportPreview";
-import { CheckoutModal } from "./ui/CheckoutModal";
 
 const plans = [
   {
@@ -18,7 +17,7 @@ const plans = [
       "Issue detection & severity",
       "AI-powered analysis",
       "Basic fix suggestions",
-      "PDF report preview",
+      "Full report view",
     ],
     plan: "free" as const,
     cta: "Scan Free",
@@ -28,36 +27,14 @@ const plans = [
     riskDot: "bg-white/30",
   },
   {
-    name: "Pro",
-    price: "$29",
-    period: "per report",
-    description:
-      "The full picture — legal article references, executive summary, and step-by-step remediation.",
-    features: [
-      "Full PDF compliance report",
-      "Legal article references (GDPR, ePrivacy)",
-      "Detailed fix recommendations",
-      "Executive summary",
-      "Priority email support",
-    ],
-    plan: "pdf" as const,
-    cta: "Get PDF Report",
-    ctaAction: "checkout",
-    badge: "Most Popular",
-    badgeClass: "bg-accent-blue/15 border-accent-blue/30 text-accent-blue",
-    borderClass: "border-accent-blue/30",
-    riskDot: "bg-risk-medium",
-    highlight: true,
-  },
-  {
     name: "Agency",
     price: "$99",
     period: "per month",
     description:
-      "Unlimited scans for all your client websites. White-label reports and a client management dashboard.",
+      "Unlimited scans for all your client websites. Client management dashboard and full report access.",
     features: [
       "Unlimited scans",
-      "White-label PDF reports",
+      "Full report access",
       "Manage up to 50 clients",
       "Historical scan comparison",
       "Priority email support",
@@ -73,29 +50,15 @@ const plans = [
 
 export function Pricing() {
   const [loading, setLoading] = useState<string | null>(null);
-  const [checkoutModal, setCheckoutModal] = useState<"pdf" | "monthly" | null>(null);
 
-  const handleCheckout = async (plan: "pdf" | "monthly") => {
-    setCheckoutModal(plan);
-  };
-
-  const handleCheckoutConfirm = async (url?: string) => {
-    setCheckoutModal(null);
-    const plan = checkoutModal;
-    if (!plan) return;
-
+  const handleCheckout = async (plan: "monthly") => {
     setLoading(plan);
 
     try {
-      const payload: { url?: string; plan: "pdf" | "monthly" } = { plan };
-      if (plan === "pdf" && url) {
-        payload.url = url;
-      }
-
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ plan }),
       });
 
       const data = await res.json() as { url?: string; error?: string };
@@ -120,13 +83,6 @@ export function Pricing() {
 
   return (
     <>
-      {checkoutModal && (
-        <CheckoutModal
-          plan={checkoutModal}
-          onConfirm={handleCheckoutConfirm}
-          onCancel={() => setCheckoutModal(null)}
-        />
-      )}
       <section id="pricing" className="py-28 px-4 relative">
       {/* Background */}
       <div className="absolute inset-0 bg-gradient-to-b from-midnight-light/20 via-midnight to-midnight pointer-events-none" />
@@ -155,24 +111,12 @@ export function Pricing() {
         </RevealSection>
 
         {/* Plan cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto mb-16">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto mb-16">
           {plans.map((plan, i) => (
-            <RevealSection key={plan.name} delay={(i + 1) as 1 | 2 | 3}>
+            <RevealSection key={plan.name} delay={(i + 1) as 1 | 2}>
               <div
-                className={`relative glass rounded-2xl p-8 flex flex-col h-full transition-all hover-lift ${
-                  plan.borderClass
-                } ${plan.highlight ? "shadow-glow-blue scale-[1.02]" : ""}`}
+                className={`relative glass rounded-2xl p-8 flex flex-col h-full transition-all hover-lift ${plan.borderClass}`}
               >
-                {/* Badge */}
-                {plan.badge && (
-                  <div
-                    className={`inline-flex items-center gap-1.5 rounded-full text-xs font-semibold px-3 py-1 mb-5 w-fit border ${plan.badgeClass}`}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
-                    {plan.badge}
-                  </div>
-                )}
-
                 {/* Plan name + price */}
                 <div className="mb-6">
                   <div className="flex items-center gap-2 mb-1">
@@ -209,15 +153,11 @@ export function Pricing() {
                     if (plan.ctaAction === "scroll") {
                       scrollToHero();
                     } else {
-                      handleCheckout(plan.plan as "pdf" | "monthly");
+                      handleCheckout(plan.plan as "monthly");
                     }
                   }}
                   disabled={loading !== null}
-                  className={`w-full rounded-xl py-3.5 px-6 font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed hover-scale ${
-                    plan.highlight
-                      ? "bg-accent-blue text-white hover:bg-accent-glow shadow-glow-blue"
-                      : "bg-white/[0.07] text-white hover:bg-white/[0.12] border border-white/[0.1]"
-                  }`}
+                  className={`w-full rounded-xl py-3.5 px-6 font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed hover-scale bg-accent-blue text-white hover:bg-accent-glow shadow-glow-blue`}
                 >
                   {loading === plan.plan ? "Redirecting..." : plan.cta}
                 </button>
@@ -239,6 +179,11 @@ export function Pricing() {
     </>
   );
 }
+
+
+
+
+
 
 
 

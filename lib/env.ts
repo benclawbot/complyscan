@@ -48,7 +48,6 @@ export function getRuntimeEnv(env?: any): any {
 export interface StripeSecrets {
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET?: string;
-  STRIPE_PRICE_PDF_REPORT?: string;
   STRIPE_PRICE_MONTHLY?: string;
 }
 
@@ -69,11 +68,6 @@ export function getStripeSecrets(env?: any): StripeSecrets | null {
       runtimeEnv?.STRIPE_WEBHOOK_SECRET ??
       (globalThis as any).__env?.STRIPE_WEBHOOK_SECRET ??
       processEnv?.STRIPE_WEBHOOK_SECRET,
-    STRIPE_PRICE_PDF_REPORT:
-      runtimeEnv?.STRIPE_PRICE_PDF_REPORT ??
-      (globalThis as any).__env?.STRIPE_PRICE_PDF_REPORT ??
-      processEnv?.STRIPE_PRICE_PDF_REPORT ??
-      processEnv?.STRIPE_PRICE_SINGLE_SCAN,
     STRIPE_PRICE_MONTHLY:
       runtimeEnv?.STRIPE_PRICE_MONTHLY ??
       (globalThis as any).__env?.STRIPE_PRICE_MONTHLY ??
@@ -310,29 +304,13 @@ export async function parseResultJson(rawJson: string): Promise<any | null> {
   }
 }
 
-export async function storeReport(scanId: string, pdfData: ArrayBuffer, env?: any): Promise<string | null> {
-  const runtimeEnv = getRuntimeEnv(env);
-  if (!runtimeEnv?.REPORTS_BUCKET) return null;
-  const key = `reports/${scanId}.pdf`;
-  await runtimeEnv.REPORTS_BUCKET.put(key, pdfData, {
-    httpMetadata: { contentType: 'application/pdf' },
-    customMetadata: { scanId, storedAt: new Date().toISOString() },
-  });
-  return key;
-}
-
-export async function getSignedReportUrl(scanId: string, env?: any): Promise<string | null> {
-  const runtimeEnv = getRuntimeEnv(env);
-  if (!runtimeEnv?.REPORTS_BUCKET) return null;
-  const key = `reports/${scanId}.pdf`;
-  return runtimeEnv.REPORTS_BUCKET.createSignedUrl({ pathname: key, expires: 3600 });
-}
-
 export async function sendScanJob(job: { scanId: string; url: string; email?: string; trigger: string }, env?: any): Promise<void> {
   const runtimeEnv = getRuntimeEnv(env);
   if (!runtimeEnv?.SCAN_QUEUE) return;
   await runtimeEnv.SCAN_QUEUE.send(job);
 }
+
+
 
 
 
