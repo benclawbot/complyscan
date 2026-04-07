@@ -51,7 +51,7 @@ async function isPaidSessionValid(request: NextRequest, sessionId: string | null
   return false;
 }
 
-async function generateFromResult(result: any, scanId: string, format: string, sessionId?: string | null) {
+async function generateFromResult(result: any, scanId: string, format: string, _sessionId?: string | null) {
   const url = result?.crawl?.url || result?.url || '';
 
   if (format === 'html') {

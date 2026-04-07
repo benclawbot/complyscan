@@ -22,8 +22,7 @@ export async function GET(
   const { scan, result } = await getScanResult(db, scanId);
 
   if (result && scan?.status === 'completed') {
-    const fullReport = Boolean(sessionId);
-    return NextResponse.json({ reportHtml: generateReportHtml(scan.url || '', result, fullReport), url: scan.url || '' });
+    return NextResponse.json({ reportHtml: generateReportHtml(scan.url || '', result, true), url: scan.url || '' });
   }
 
   if (!scan) {
