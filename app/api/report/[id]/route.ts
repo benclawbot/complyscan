@@ -2,32 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, getRuntimeEnv, parseResultJson, getStripeSecrets } from '@/lib/env';
 import { generateReportHtml } from '@/lib/report';
 import { retrieveCheckoutSession } from '@/lib/stripe-api';
-import { buildMockScanResult } from '@/lib/mock-scan';
 
 async function getScanResult(db: ReturnType<typeof getDb>, scanId: string) {
   const scan = await db.prepare('SELECT * FROM scans WHERE id = ?').get(scanId) as any;
   if (!scan) return { scan: null, result: null };
   const result = scan.result_json ? await parseResultJson(scan.result_json) : null;
   return { scan, result };
-}
-
-async function hydrateMockScanIfNeeded(db: ReturnType<typeof getDb>, scanId: string, sessionId: string | null) {
-  if (!sessionId?.startsWith('mock_pdf_')) return null;
-
-  const scan = await db.prepare('SELECT * FROM scans WHERE id = ?').get(scanId) as any;
-  if (!scan) return null;
-  if (scan.status === 'completed' && scan.result_json) {
-    return getScanResult(db, scanId);
-  }
-
-  const result = buildMockScanResult(scan.url || 'https://example.com', true);
-  await db.prepare(`
-    UPDATE scans
-    SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-    WHERE id = ?
-  `).run(JSON.stringify(result), scanId);
-
-  return getScanResult(db, scanId);
 }
 
 export async function GET(
@@ -39,43 +19,26 @@ export async function GET(
   const env: any = getRuntimeEnv((request as any).env ?? (globalThis as any).__env ?? undefined);
   const db = getDb(env);
 
-  let { scan, result } = await getScanResult(db, scanId);
-
-  const mockHydrated = await hydrateMockScanIfNeeded(db, scanId, sessionId);
-  if (mockHydrated) {
-    scan = mockHydrated.scan;
-    result = mockHydrated.result;
-  }
+  const { scan, result } = await getScanResult(db, scanId);
 
   if (result && scan?.status === 'completed') {
-    // Free/preview: no sessionId means unauthenticated free scan — show limited content
     const fullReport = Boolean(sessionId);
     return NextResponse.json({ reportHtml: generateReportHtml(scan.url || '', result, fullReport), url: scan.url || '' });
   }
 
-  if (!scan && !sessionId) {
+  if (!scan) {
     return NextResponse.json({ error: 'Scan not found' }, { status: 404 });
   }
 
-  if (scan?.status === 'pending' || scan?.status === 'processing') {
+  if (scan.status === 'pending' || scan.status === 'processing') {
     return NextResponse.json({ error: 'Scan not yet complete' }, { status: 202 });
   }
 
-  if (scan?.status === 'failed') {
+  if (scan.status === 'failed') {
     return NextResponse.json({ error: 'Scan failed. Please try again.' }, { status: 500 });
   }
 
   if (sessionId) {
-    if (sessionId.startsWith('mock_pdf_')) {
-      const refreshed = await hydrateMockScanIfNeeded(db, scanId, sessionId);
-      if (refreshed?.result) {
-        return NextResponse.json({
-          reportHtml: generateReportHtml(refreshed.scan?.url || '', refreshed.result, true),
-          url: refreshed.scan?.url || '',
-        });
-      }
-    }
-
     const stripeSecrets = getStripeSecrets(request as any);
     if (stripeSecrets) {
       try {
@@ -98,7 +61,3 @@ export async function GET(
 
   return NextResponse.json({ error: 'Scan not yet complete' }, { status: 202 });
 }
-
-
-
-

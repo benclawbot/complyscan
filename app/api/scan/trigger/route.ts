@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, getRuntimeEnv, sendScanJob, parseResultJson } from '@/lib/env';
-import { buildMockScanResult } from '@/lib/mock-scan';
 
 export async function POST(request: NextRequest) {
   let scanId: string | undefined;
@@ -48,16 +47,6 @@ export async function POST(request: NextRequest) {
     INSERT OR REPLACE INTO scans (id, url, status, email, stripe_session_id, created_at)
     VALUES (?, ?, 'pending', ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
   `).run(scanId, url, email || null, sessionId || null);
-
-  if (env?.MOCK_STRIPE === '1' || env?.E2E_TEST_MODE === '1') {
-    const result = buildMockScanResult(url, true);
-    await db.prepare(`
-      UPDATE scans
-      SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-      WHERE id = ?
-    `).run(JSON.stringify(result), scanId);
-    return NextResponse.json({ status: 'completed', scanId, result });
-  }
 
   if (!env?.SCAN_QUEUE) {
     await db.prepare(`UPDATE scans SET status = 'failed' WHERE id = ?`).run(scanId);

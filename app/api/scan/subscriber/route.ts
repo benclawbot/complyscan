@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, getRuntimeEnv, sendScanJob, compressGzip } from '@/lib/env';
-import { MOCK_SCAN_MODE, buildMockScanResult } from '@/lib/mock-scan';
+import { crawlPage } from '@/lib/crawler';
+import { analyzeWithAI } from '@/lib/ai-analysis';
+import { runRuleBasedChecks } from '@/lib/gdpr-checks';
 import { getBearerToken, verifySubscriberToken, touchSubscriberToken } from '@/lib/auth';
 
 async function getSubscriberFromRequest(request: NextRequest, explicitToken?: string) {
@@ -69,20 +71,48 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ scanId, status: 'queued', message: 'Scan queued.' });
     }
 
-    if (MOCK_SCAN_MODE) {
-      await db.prepare(`UPDATE scans SET status = 'processing' WHERE id = ?`).run(scanId);
-      const result = buildMockScanResult(url);
-      const resultJson = await compressGzip(JSON.stringify(result));
-      await db.prepare(`
-        UPDATE scans
-        SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-        WHERE id = ?
-      `).run(resultJson, scanId);
-      return NextResponse.json({ scanId, status: 'completed', result, message: 'Scan complete.' });
+    // No queue configured — run synchronously
+    await db.prepare(`UPDATE scans SET status = 'processing' WHERE id = ?`).run(scanId);
+
+    let crawlResult;
+    try {
+      crawlResult = await crawlPage(url);
+    } catch (err: any) {
+      console.error(`Crawl failed for ${url}:`, err.message);
+      await db.prepare(`UPDATE scans SET status = 'failed' WHERE id = ?`).run(scanId);
+      return NextResponse.json({ error: `Crawl failed: ${err.message}` }, { status: 500 });
     }
 
-    await db.prepare(`UPDATE scans SET status = 'failed' WHERE id = ?`).run(scanId);
-    return NextResponse.json({ error: 'Scan queue is not configured' }, { status: 500 });
+    const ruleChecks = runRuleBasedChecks(crawlResult);
+    const aiResult = await analyzeWithAI(crawlResult, ruleChecks);
+
+    const result = {
+      crawl: {
+        url: crawlResult.url,
+        title: crawlResult.title,
+        description: crawlResult.description,
+        h1s: crawlResult.h1s,
+        trackingScripts: crawlResult.trackingScripts,
+        formsCount: crawlResult.formsCount,
+        formInputsLabeled: crawlResult.formInputsLabeled,
+        totalFormInputs: crawlResult.totalFormInputs,
+        hasSSL: crawlResult.hasSSL,
+        statusCode: crawlResult.statusCode,
+        hasPrivacyPolicy: crawlResult.hasPrivacyPolicy,
+        hasCookiePolicyPage: crawlResult.hasCookiePolicyPage,
+        hasCookieBanner: crawlResult.hasCookieBanner,
+        cookieBannerText: crawlResult.cookieBannerText,
+        privacyPolicyUrl: crawlResult.privacyPolicyUrl,
+        thirdPartyEmbeds: crawlResult.thirdPartyEmbeds,
+      },
+      ruleChecks,
+      aiAnalysis: aiResult,
+      scannedAt: new Date().toISOString(),
+    };
+
+    const resultJson = await compressGzip(JSON.stringify(result));
+    await db.prepare(`UPDATE scans SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`).run(resultJson, scanId);
+    return NextResponse.json({ scanId, status: 'completed', result, message: 'Scan complete.' });
   } catch (error: any) {
     console.error('Subscriber scan error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

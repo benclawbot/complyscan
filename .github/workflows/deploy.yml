@@ -33,7 +33,9 @@ jobs:
           STRIPE_PRICE_PDF_REPORT: ${{ secrets.STRIPE_PRICE_PDF_REPORT }}
           STRIPE_PRICE_MONTHLY: ${{ secrets.STRIPE_PRICE_MONTHLY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
-          MOCK_STRIPE: ""
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+          BROWSERLESS_API_KEY: ${{ secrets.BROWSERLESS_API_KEY }}
 
       - name: Remove build cache artifacts
         run: rm -rf .next/cache
@@ -48,11 +50,14 @@ jobs:
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
         run: |
           npx wrangler pages deploy .open-next --project-name complyscan --branch main
-          echo "Setting Stripe runtime secrets..."
+          echo "Setting runtime secrets..."
           echo "$STRIPE_SECRET_KEY" | npx wrangler pages secret put STRIPE_SECRET_KEY --project complyscan
           echo "$STRIPE_PRICE_PDF_REPORT" | npx wrangler pages secret put STRIPE_PRICE_PDF_REPORT --project complyscan
           echo "$STRIPE_PRICE_MONTHLY" | npx wrangler pages secret put STRIPE_PRICE_MONTHLY --project complyscan
           echo "$STRIPE_WEBHOOK_SECRET" | npx wrangler pages secret put STRIPE_WEBHOOK_SECRET --project complyscan
+          echo "$OPENAI_API_KEY" | npx wrangler pages secret put OPENAI_API_KEY --project complyscan
+          echo "$OPENAI_BASE_URL" | npx wrangler pages secret put OPENAI_BASE_URL --project complyscan
+          echo "$BROWSERLESS_API_KEY" | npx wrangler pages secret put BROWSERLESS_API_KEY --project complyscan
 
 
 
