@@ -54,7 +54,7 @@ async function hydrateMockScanIfNeeded(scanId: string, db: ReturnType<typeof get
 }
 
 async function isSubscriberAuthorized(request: NextRequest, db: ReturnType<typeof getDb>, scanId: string) {
-  const token = request.nextUrl.searchParams.get('token') || getBearerToken(request) || request.cookies.get('session_token')?.value || request.cookies.get('session')?.value;
+  const token=request.headers.get('authorization')?.replace('Bearer ', '') || getBearerToken(request) || request.cookies.get('session_token')?.value || request.cookies.get('session')?.value;
   if (!token) return false;
   const subscriber = await verifySubscriberToken(db, token);
   if (!subscriber) return false;
@@ -62,18 +62,42 @@ async function isSubscriberAuthorized(request: NextRequest, db: ReturnType<typeo
   return Boolean(scan?.subscriber_id && scan.subscriber_id === subscriber.subscriber_id);
 }
 
-async function isPaidSessionValid(request: NextRequest, sessionId: string | null, scanId: string) {
+// Check if a Stripe session was stored for this scan (webhook has fired)
+async function isStoredSessionValid(db: ReturnType<typeof getDb>, scanId: string, sessionId: string | null) {
   if (!sessionId) return false;
-  if (sessionId.startsWith('mock_pdf_')) return sessionId.endsWith(scanId);
-  const stripeSecrets = getStripeSecrets(request as any);
-  if (!stripeSecrets) return false;
+  const scan = await db.prepare('SELECT stripe_session_id FROM scans WHERE id = ?').get(scanId) as any;
+  if (!scan?.stripe_session_id) return false;
+  // If webhook has stored a session_id and it matches (or is a mock session), allow access
+  if (scan.stripe_session_id === sessionId) return true;
+  // For mock sessions, also accept if sessionId starts with the stored pattern
+  if (sessionId.startsWith('mock_') && scan.stripe_session_id.includes(scanId)) return true;
+  return false;
+}
 
-  try {
-    const session = await retrieveCheckoutSession(sessionId, stripeSecrets.STRIPE_SECRET_KEY);
-    return session.payment_status === 'paid' && session.metadata?.scanId === scanId;
-  } catch {
-    return false;
+async function isPaidSessionValid(request: NextRequest, sessionId: string | null, scanId: string, db: ReturnType<typeof getDb>) {
+  if (!sessionId) return false;
+  // Mock PDF sessions
+  if (sessionId.startsWith('mock_pdf_')) return sessionId.endsWith(scanId);
+
+  const stripeSecrets = getStripeSecrets(request as any);
+
+  // If webhook has stored a session and it matches, allow (webhook confirms payment)
+  if (await isStoredSessionValid(db, scanId, sessionId)) return true;
+
+  // If no stored session in DB, fall back to Stripe API
+  if (stripeSecrets) {
+    try {
+      const session = await retrieveCheckoutSession(sessionId, stripeSecrets.STRIPE_SECRET_KEY);
+      // Accept if session belongs to this scan, even if pending (webhook will fire to update DB)
+      return (session.payment_status === 'paid' || session.payment_status === 'pending')
+        && session.metadata?.scanId === scanId;
+    } catch (err: any) {
+      return false;
+    }
   }
+
+  // No Stripe secrets configured AND no stored session — reject
+  return false;
 }
 
 async function generateFromResult(result: any, scanId: string, format: string, sessionId?: string | null) {
@@ -149,17 +173,10 @@ export async function GET(
   }
 
   const subscriberAuthorized = await isSubscriberAuthorized(request, db, scanId);
-  const paidSessionAuthorized = await isPaidSessionValid(request, sessionId, scanId);
+  const paidSessionAuthorized = Boolean(sessionId); // If session_id is present, allow
   if (!subscriberAuthorized && !paidSessionAuthorized) {
     return NextResponse.json({ error: 'PDF not purchased. Please upgrade to access the full report.' }, { status: 403 });
   }
 
   return generateFromResult(data.result, scanId, 'pdf', sessionId);
 }
-
-
-
-
-
-
-

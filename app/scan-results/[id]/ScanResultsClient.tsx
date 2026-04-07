@@ -84,11 +84,14 @@ function FindingsSection({ result, isLimitedPreview }: { result: any; isLimitedP
   const warnings = all.filter((c: any) => c.severity === "warning" || c.passed === false).map(normalizeIssue);
   const passed = all.filter((c: any) => c.severity === "pass" || c.severity === "info" || c.passed === true).map(normalizeIssue);
 
-  const score = result.aiAnalysis?.gdprScore != null
-    ? result.aiAnalysis.gdprScore
-    : result.ruleChecks?.length
-      ? Math.max(0, 100 - critical.length * 25 - warnings.length * 10)
-      : null;
+  const score = result.aiAnalysis?.gdprScore ?? (result.ruleChecks?.length
+    ? Math.max(0, 100 - critical.length * 25 - warnings.length * 10)
+    : null);
+
+  // Track total issues for upgrade messaging
+  const totalAiIssues = result.aiAnalysis?.issues?.length || 0;
+  const displayedAiIssues = isLimitedPreview ? Math.min(3, totalAiIssues) : totalAiIssues;
+  const hiddenAiIssues = Math.max(0, totalAiIssues - displayedAiIssues);
 
   return (
     <div className="space-y-6">
@@ -97,15 +100,26 @@ function FindingsSection({ result, isLimitedPreview }: { result: any; isLimitedP
       {warnings.length > 0 && <IssueList issues={warnings} severity="warning" isLimited={isLimitedPreview} />}
       {passed.length > 0 && <IssueList issues={passed} severity="info" isLimited={isLimitedPreview} />}
 
-      {!isLimitedPreview && result.aiAnalysis && (
+      {result.aiAnalysis && (
         <div className="bg-midnight-light border border-white/10 rounded-xl p-6">
           <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
             <FileText className="w-4 h-4 text-accent-blue" />
             AI Analysis
+            {isLimitedPreview && hiddenAiIssues > 0 && (
+              <span className="ml-auto text-xs text-amber-400">+{hiddenAiIssues} more in full report</span>
+            )}
           </h3>
           <p className="text-white/60 text-sm whitespace-pre-wrap">
             {result.aiAnalysis.summary || result.aiAnalysis.text || "No summary available."}
           </p>
+          {isLimitedPreview && hiddenAiIssues > 0 && (
+            <button
+              onClick={() => window.document.getElementById('upgrade-prompt')?.scrollIntoView({ behavior: 'smooth' })}
+              className="mt-3 text-xs text-accent-blue hover:text-accent-glow transition-colors"
+            >
+              Upgrade to see all {totalAiIssues} AI findings →
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -119,12 +133,17 @@ function toLimitedPreview(result: any): any {
     ...issue,
     recommendation: undefined,
     fix: undefined,
+    evidence: undefined,
   });
 
   return {
     ...result,
     ruleChecks: (result.ruleChecks || []).slice(0, ISSUE_CAP).map(stripIssue),
-    aiAnalysis: null,
+    // Preserve aiAnalysis for the gdprScore, but limit issues to top 3 for free preview
+    aiAnalysis: result.aiAnalysis ? {
+      ...result.aiAnalysis,
+      issues: (result.aiAnalysis.issues || []).slice(0, 3),
+    } : null,
   };
 }
 
@@ -314,7 +333,7 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
               <FindingsSection result={result} isLimitedPreview={isLimitedPreview} />
             </div>
 
-            <div className="bg-gradient-to-r from-accent-blue/20 via-midnight-light to-midnight-light border border-accent-blue/30 rounded-2xl p-8 text-center">
+            <div id="upgrade-prompt" className="bg-gradient-to-r from-accent-blue/20 via-midnight-light to-midnight-light border border-accent-blue/30 rounded-2xl p-8 text-center">
               <Lock className="w-8 h-8 text-accent-blue mx-auto mb-3" />
               <h3 className="text-xl font-bold text-white mb-2">Unlock the Full Report</h3>
               <p className="text-white/50 text-sm mb-6 max-w-md mx-auto">
@@ -381,3 +400,7 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
     </div>
   );
 }
+
+
+
+
