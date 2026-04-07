@@ -23,6 +23,8 @@
     "@types/pg": "^8.20.0",
     "better-sqlite3": "^12.8.0",
     "clsx": "latest",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "linkedom": "^0.18.12",
     "lucide-react": "latest",
     "next": "latest",
@@ -61,4 +63,3 @@
     "wrangler": "^4.80.0"
   }
 }
-
