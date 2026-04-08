@@ -1,4 +1,3 @@
-import { chromium } from 'playwright';
 import { getBrowserRenderingSecrets } from './env';
 import { generateReportHtml, type Branding } from './report';
 import type { ScanResult } from './report';
@@ -40,13 +39,5 @@ export async function generatePDF(input: PDFInput): Promise<Buffer> {
     return Buffer.from(buf);
   }
 
-  // Local/dev path: Playwright-managed Chromium.
-  const browser = await chromium.launch({ headless: true });
-  try {
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle' });
-    return await page.pdf({ format: 'A4', printBackground: true });
-  } finally {
-    await browser.close();
-  }
+  throw new Error('PDF generation is unavailable: Cloudflare Browser Rendering is not configured.');
 }
