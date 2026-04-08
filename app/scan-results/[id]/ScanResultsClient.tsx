@@ -182,7 +182,9 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
     fetch('/api/auth/me')
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
-        if (data && typeof data === 'object') setMe(data);
+        if (data && typeof data === 'object' && 'authenticated' in data) {
+          setMe(data as { authenticated: boolean; type?: string; credits?: number });
+        }
       })
       .catch(() => {});
   }, []);

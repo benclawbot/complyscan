@@ -510,7 +510,7 @@ export function generateReportHtml(url: string, result: ScanResult | NormalizedS
 
   const remediationItems = [
     ...displayedFailedChecks.map(c => ({ text: `Fix: ${esc(c.name)} — ${esc(c.recommendation || 'See recommendation above')}`, done: false })),
-    ...(displayedIssues.filter((i: AIIssue) => i.fix).map((i: AIIssue) => ({ text: `AI Fix: ${esc(i.title)} — ${esc(i.fix)}`, done: false }))),
+    ...(displayedIssues.filter((i: any) => Boolean(i?.fix)).map((i: any) => ({ text: `AI Fix: ${esc(i.title)} — ${esc(i.fix)}`, done: false }))),
   ];
 
   const remediationSection = fullReport

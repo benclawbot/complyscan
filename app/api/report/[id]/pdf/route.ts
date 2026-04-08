@@ -14,7 +14,7 @@ async function getScanResult(db: ReturnType<typeof getDb>, scanId: string) {
 }
 
 function pdfResponse(pdf: Buffer, fileBase: string) {
-  return new NextResponse(pdf, {
+  return new NextResponse(new Uint8Array(pdf), {
     headers: {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `inline; filename="${fileBase}.pdf"`,

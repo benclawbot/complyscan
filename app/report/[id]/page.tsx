@@ -128,7 +128,7 @@ export default function ReportPage() {
       <div className="max-w-4xl mx-auto px-4 py-6">
         {!fullReport && (
           <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-200 text-sm">
-            This is a preview. Go back to <a className="underline" href={`/scan-results/${encodeURIComponent(scanId)}`}>scan results</a> to unlock with credits.
+            This is a preview. Go back to <a className="underline" href={`/scan-results/${encodeURIComponent(scanId || '')}`}>scan results</a> to unlock with credits.
           </div>
         )}
         <div className="bg-white rounded-xl overflow-hidden shadow-2xl">
