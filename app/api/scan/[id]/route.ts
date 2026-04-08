@@ -4,6 +4,16 @@ import { getBearerToken, getSubscriberTokenRecord, getUserSession, touchSubscrib
 import { hasUnlockedReport } from '@/lib/report-access';
 import { isNormalizedScanResultV2, normalizeScanResultV2 } from '@/lib/scan-normalize';
 
+function jsonNoStore(data: any, init?: ResponseInit) {
+  return NextResponse.json(data, {
+    ...init,
+    headers: {
+      'Cache-Control': 'no-store',
+      ...(init?.headers || {}),
+    },
+  });
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -14,7 +24,7 @@ export async function GET(
 
   const scan = await db.prepare('SELECT * FROM scans WHERE id = ?').get(id) as any;
   if (!scan) {
-    return NextResponse.json({ error: 'Scan not found' }, { status: 404 });
+    return jsonNoStore({ error: 'Scan not found' }, { status: 404 });
   }
 
   const rawResult = scan.result_json ? await parseResultJson(scan.result_json) : undefined;
@@ -70,7 +80,7 @@ export async function GET(
           })
     : undefined;
 
-  return NextResponse.json({
+  return jsonNoStore({
     id: scan.id,
     url: scan.url,
     email: scan.email,

@@ -34,6 +34,25 @@ function validateResult(obj: unknown): obj is AiAnalysisResult {
   );
 }
 
+function heuristicScoreFromChecks(ruleBasedChecks: any[]): number {
+  const checks = Array.isArray(ruleBasedChecks) ? ruleBasedChecks : [];
+  let score = 100;
+  for (const c of checks) {
+    if (c?.passed !== false) continue;
+    const severity = String(c?.severity || '').toLowerCase();
+    if (severity === 'critical') score -= 25;
+    else if (severity === 'warning') score -= 10;
+    else score -= 3;
+  }
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function riskFromScore(score: number): AiAnalysisResult['riskLevel'] {
+  if (score >= 75) return 'low';
+  if (score >= 50) return 'medium';
+  return 'high';
+}
+
 async function createChatCompletion(prompt: string): Promise<string> {
   const { apiKey, baseURL } = getAiConfig();
   const response = await fetch(`${baseURL.replace(/\/$/, '')}/chat/completions`, {
@@ -113,7 +132,21 @@ Return a JSON object with this exact structure:
 
 Be specific. Generic advice is not helpful. Focus on actionable fixes.`;
 
-  let content = await createChatCompletion(prompt);
+  const fallbackScore = heuristicScoreFromChecks(ruleBasedChecks);
+  const fallbackRisk = riskFromScore(fallbackScore);
+
+  let content = '';
+  try {
+    content = await createChatCompletion(prompt);
+  } catch {
+    return {
+      summary: 'AI analysis unavailable. Showing rule-based score only.',
+      riskLevel: fallbackRisk,
+      issues: [],
+      positives: [],
+      gdprScore: fallbackScore,
+    };
+  }
   content = content.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').trim();
   content = content.replace(/<think>[\s\S]*?<\/thinking>/gi, '').trim();
   content = content.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').trim();
@@ -201,8 +234,8 @@ Be specific. Generic advice is not helpful. Focus on actionable fixes.`;
     repaired = repaired.substring(0, truncateAt);
     if (!repaired.includes('"issues"')) repaired += '"issues": []';
     if (!repaired.includes('"positives"')) repaired += ',"positives": []';
-    if (!repaired.includes('"riskLevel"')) repaired += ',"riskLevel": "medium"';
-    if (!repaired.includes('"gdprScore"')) repaired += ',"gdprScore": 50';
+    if (!repaired.includes('"riskLevel"')) repaired += `,"riskLevel": "${fallbackRisk}"`;
+    if (!repaired.includes('"gdprScore"')) repaired += `,"gdprScore": ${fallbackScore}`;
 
     const openBraces = (repaired.match(/\{/g) || []).length;
     const closeBraces = (repaired.match(/\}/g) || []).length;
@@ -224,18 +257,32 @@ Be specific. Generic advice is not helpful. Focus on actionable fixes.`;
     if (summaryMatch || scoreMatch) {
       parsed = {
         summary: summaryMatch ? summaryMatch[1].replace(/\\n/g, ' ').replace(/\\"/g, '"').substring(0, 2000) : 'AI analysis unavailable. Please try again.',
-        gdprScore: scoreMatch ? Math.max(0, Math.min(100, parseInt(scoreMatch[1], 10))) : 50,
-        riskLevel: 'medium',
+        gdprScore: scoreMatch ? Math.max(0, Math.min(100, parseInt(scoreMatch[1], 10))) : fallbackScore,
+        riskLevel: fallbackRisk,
         issues: [],
         positives: [],
       };
     } else {
-      throw new Error(`AI response JSON parse failed: ${errMsg} | content preview: ${content.substring(0, 300)}`);
+      console.error(`AI response JSON parse failed: ${errMsg} | content preview: ${content.substring(0, 300)}`);
+      return {
+        summary: 'AI analysis unavailable. Showing rule-based score only.',
+        riskLevel: fallbackRisk,
+        issues: [],
+        positives: [],
+        gdprScore: fallbackScore,
+      };
     }
   }
 
   if (!validateResult(parsed)) {
-    throw new Error(`AI response validation failed — missing required fields. Got: ${JSON.stringify(Object.keys(parsed || {}))}`);
+    console.error(`AI response validation failed — missing required fields. Got: ${JSON.stringify(Object.keys(parsed || {}))}`);
+    return {
+      summary: 'AI analysis unavailable. Showing rule-based score only.',
+      riskLevel: fallbackRisk,
+      issues: [],
+      positives: [],
+      gdprScore: fallbackScore,
+    };
   }
 
   return parsed;

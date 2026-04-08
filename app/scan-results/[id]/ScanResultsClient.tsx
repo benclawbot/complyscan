@@ -179,7 +179,7 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
   const previewMode = !fullAccess;
 
   useEffect(() => {
-    fetch('/api/auth/me')
+    fetch('/api/auth/me', { cache: 'no-store' })
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (data && typeof data === 'object' && 'authenticated' in data) {
@@ -208,11 +208,11 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
 
     let cancelled = false;
     let attempts = 0;
-    const maxAttempts = 60;
+    const maxAttempts = 300;
 
     const poll = async () => {
       try {
-        const res = await fetch(`/api/scan/${encodeURIComponent(scanId)}`);
+        const res = await fetch(`/api/scan/${encodeURIComponent(scanId)}`, { cache: 'no-store' });
         const data = await res.json() as { status?: string; url?: string; email?: string | null; result?: any; fullAccess?: boolean };
         if (cancelled) return;
 
@@ -312,10 +312,7 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
         alert('Failed to generate PDF.');
         return;
       }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+      window.open(`/api/report/${encodeURIComponent(scanId)}/pdf`, '_blank', 'noopener,noreferrer');
     } catch {
       alert('Failed to generate PDF.');
     }

@@ -349,9 +349,14 @@ async function crawlPageForWorker(url: string): Promise<CrawlResult> {
   const response = await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GDPRBot/1.0)' },
   });
-  if (!response.ok) throw new Error(`Fetch failed with status ${response.status}`);
+  if (!response.ok) {
+    console.warn(`[Worker] Non-OK crawl status ${response.status} for ${url}; continuing with response body.`);
+  }
 
   const html = await response.text();
+  if (!html || !html.trim()) {
+    throw new Error(`Fetch returned empty body with status ${response.status}`);
+  }
   const title = extractText(html, 'title');
   const description = extractMetaContent(html, 'description');
   const h1s = extractAllText(html, 'h1');
@@ -520,6 +525,48 @@ function runRuleBasedChecks(crawlResult: CrawlResult): GdprCheck[] {
   return checks;
 }
 
+function heuristicScoreFromChecks(ruleBasedChecks: any[]): number {
+  const checks = Array.isArray(ruleBasedChecks) ? ruleBasedChecks : [];
+  let score = 100;
+  for (const c of checks) {
+    if (c?.passed !== false) continue;
+    const severity = String(c?.severity || '').toLowerCase();
+    if (severity === 'critical') score -= 25;
+    else if (severity === 'warning') score -= 10;
+    else score -= 3;
+  }
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function riskFromScore(score: number): AiAnalysisResult['riskLevel'] {
+  if (score >= 75) return 'low';
+  if (score >= 50) return 'medium';
+  return 'high';
+}
+
+function extractAiText(response: any): string {
+  const choice = response?.choices?.[0];
+  const content = choice?.message?.content
+    ?? choice?.messages?.[0]?.content
+    ?? choice?.text
+    ?? response?.output_text
+    ?? response?.result?.response
+    ?? response?.response
+    ?? '{}';
+
+  if (Array.isArray(content)) {
+    return content
+      .map((part: any) => {
+        if (typeof part === 'string') return part;
+        if (typeof part?.text === 'string') return part.text;
+        return '';
+      })
+      .join('');
+  }
+
+  return typeof content === 'string' ? content : JSON.stringify(content);
+}
+
 async function analyzeWithWorkersAI(crawlResult: any, ruleBasedChecks: any[], ai: Ai): Promise<AiAnalysisResult> {
   const truncated = {
     ...crawlResult,
@@ -544,8 +591,17 @@ Return a JSON object with this exact structure:
   "gdprScore": 0-100
 }`;
 
+  const fallbackScore = heuristicScoreFromChecks(ruleBasedChecks);
+  const fallbackResult: AiAnalysisResult = {
+    summary: 'AI analysis unavailable. Showing rule-based score only.',
+    riskLevel: riskFromScore(fallbackScore),
+    issues: [],
+    positives: [],
+    gdprScore: fallbackScore,
+  };
+
   if (!ai) {
-    return { summary: 'AI analysis unavailable.', riskLevel: 'medium', issues: [], positives: [], gdprScore: 50 };
+    return fallbackResult;
   }
 
   try {
@@ -555,7 +611,7 @@ Return a JSON object with this exact structure:
       max_tokens: 1200,
     });
 
-    let content = response.choices?.[0]?.messages?.[0]?.content || '{}';
+    let content = extractAiText(response);
     content = content.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').replace(/^```json\s*/i, '').replace(/^```\s*/i, '').trim();
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) content = jsonMatch[0];
@@ -567,11 +623,11 @@ Return a JSON object with this exact structure:
       return parsed;
     } catch {
       console.error('[Worker] AI parse failed, using fallback:', content.substring(0, 200));
-      return { summary: 'AI analysis unavailable. Please try again.', riskLevel: 'medium', issues: [], positives: [], gdprScore: 50 };
+      return fallbackResult;
     }
   } catch (err) {
     console.error('[Worker] AI invocation failed, using fallback:', err);
-    return { summary: 'AI analysis unavailable. Please try again.', riskLevel: 'medium', issues: [], positives: [], gdprScore: 50 };
+    return fallbackResult;
   }
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 
 export default function ReportPage() {
@@ -12,8 +12,16 @@ export default function ReportPage() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [reportHtml, setReportHtml] = useState<string | null>(null);
   const [fullReport, setFullReport] = useState<boolean>(false);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   const handlePrint = () => {
+    const iframeWindow = iframeRef.current?.contentWindow;
+    if (iframeWindow) {
+      iframeWindow.focus();
+      iframeWindow.print();
+      return;
+    }
+
     if (!reportHtml) return;
     const printWindow = window.open('', '_blank', 'noopener,noreferrer');
     if (!printWindow) return;
@@ -21,17 +29,13 @@ export default function ReportPage() {
     printWindow.document.write(reportHtml);
     printWindow.document.close();
     printWindow.focus();
-    printWindow.print();
+    setTimeout(() => printWindow.print(), 150);
   };
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = () => {
     if (!scanId) return;
-    const r = await fetch(`/api/report/${encodeURIComponent(scanId)}/pdf`);
-    if (!r.ok) return;
-    const blob = await r.blob();
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-    setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    const pdfUrl = `/api/report/${encodeURIComponent(scanId)}/pdf`;
+    window.open(pdfUrl, '_blank', 'noopener,noreferrer');
   };
 
   useEffect(() => {
@@ -39,7 +43,7 @@ export default function ReportPage() {
 
     const poll = async () => {
       const suffix = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : '';
-      const r = await fetch(`/api/report/${encodeURIComponent(scanId)}${suffix}`);
+      const r = await fetch(`/api/report/${encodeURIComponent(scanId)}${suffix}`, { cache: 'no-store' });
       if (!r.ok) throw new Error('Report unavailable');
       const data = await r.json() as { reportHtml?: string; fullReport?: boolean };
       if (!data.reportHtml) throw new Error('Missing report html');
@@ -132,7 +136,7 @@ export default function ReportPage() {
           </div>
         )}
         <div className="bg-white rounded-xl overflow-hidden shadow-2xl">
-          <iframe srcDoc={reportHtml} className="w-full" style={{ height: '80vh', border: 'none' }} title="GDPR Report" />
+          <iframe ref={iframeRef} srcDoc={reportHtml} className="w-full" style={{ height: '80vh', border: 'none' }} title="GDPR Report" />
         </div>
       </div>
     </div>

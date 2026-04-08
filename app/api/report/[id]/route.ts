@@ -6,6 +6,16 @@ import { getBearerToken, getSubscriberTokenRecord, getUserSession, touchSubscrib
 import { getBranding } from '@/lib/branding';
 import { hasUnlockedReport } from '@/lib/report-access';
 
+function jsonNoStore(data: any, init?: ResponseInit) {
+  return NextResponse.json(data, {
+    ...init,
+    headers: {
+      'Cache-Control': 'no-store',
+      ...(init?.headers || {}),
+    },
+  });
+}
+
 async function getScanResult(db: ReturnType<typeof getDb>, scanId: string) {
   const scan = await db.prepare('SELECT * FROM scans WHERE id = ?').get(scanId) as any;
   if (!scan) return { scan: null, result: null };
@@ -34,7 +44,7 @@ export async function GET(
       if (sub) {
         await touchSubscriberToken(db, token);
         const authorized = !scan.subscriber_id || scan.subscriber_id === sub.subscriber_id || scan.email === sub.email;
-        if (!authorized) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        if (!authorized) return jsonNoStore({ error: 'Forbidden' }, { status: 403 });
         branding = await getBranding(db, { type: 'subscriber', id: sub.subscriber_id });
         full = true;
       } else {
@@ -42,14 +52,14 @@ export async function GET(
         if (user) {
           await touchUserSession(db, token);
           const authorized = !scan.user_id || scan.user_id === user.user_id || scan.email === user.email;
-          if (!authorized) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+          if (!authorized) return jsonNoStore({ error: 'Forbidden' }, { status: 403 });
           branding = await getBranding(db, { type: 'user', id: user.user_id });
           full = scan.subscriber_id ? true : await hasUnlockedReport(db, scanId);
         }
       }
     }
 
-    return NextResponse.json({
+    return jsonNoStore({
       reportHtml: generateReportHtml(scan.url || '', result as any, full, branding ?? undefined),
       url: scan.url || '',
       fullReport: full,
@@ -57,15 +67,15 @@ export async function GET(
   }
 
   if (!scan) {
-    return NextResponse.json({ error: 'Scan not found' }, { status: 404 });
+    return jsonNoStore({ error: 'Scan not found' }, { status: 404 });
   }
 
   if (scan.status === 'pending' || scan.status === 'processing') {
-    return NextResponse.json({ error: 'Scan not yet complete' }, { status: 202 });
+    return jsonNoStore({ error: 'Scan not yet complete' }, { status: 202 });
   }
 
   if (scan.status === 'failed') {
-    return NextResponse.json({ error: 'Scan failed. Please try again.' }, { status: 500 });
+    return jsonNoStore({ error: 'Scan failed. Please try again.' }, { status: 500 });
   }
 
   if (sessionId) {
@@ -77,7 +87,7 @@ export async function GET(
         if (stripeScanId && stripeScanId === scanId) {
           const refreshed = await getScanResult(db, scanId);
           if (refreshed.result) {
-            return NextResponse.json({
+            return jsonNoStore({
               reportHtml: generateReportHtml(refreshed.scan?.url || '', refreshed.result, true),
               url: refreshed.scan?.url || '',
             });
@@ -89,5 +99,5 @@ export async function GET(
     }
   }
 
-  return NextResponse.json({ error: 'Scan not yet complete' }, { status: 202 });
+  return jsonNoStore({ error: 'Scan not yet complete' }, { status: 202 });
 }
