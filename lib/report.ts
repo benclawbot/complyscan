@@ -155,6 +155,10 @@ function scoreBarHtml(score: number): string {
   return html;
 }
 
+function pageBreak(): string {
+  return `<div class="page-break"></div>`;
+}
+
 export function generateReportHtml(url: string, result: ScanResult, fullReport = true): string {
   const { crawl, ruleChecks, aiAnalysis, scannedAt } = result;
   const score = aiAnalysis?.gdprScore ?? 0;
@@ -223,6 +227,64 @@ export function generateReportHtml(url: string, result: ScanResult, fullReport =
     ${aiAnalysis?.summary ? p(`<strong>AI Assessment:</strong> ${esc(aiAnalysis.summary)}`) : ''}
     ${execSummaryPreviewNote}
   `);
+
+  const tocItems = [
+    'Executive Summary',
+    'Score Breakdown',
+    'Key Findings',
+    'Automated Checks',
+    ...(allIssues.length > 0 ? ['AI-Detected Issues'] : []),
+    'Privacy Policy Analysis',
+    'GDPR Articles Quick Reference',
+    'Remediation Action Plan',
+    'Methodology and Limitations',
+    'Technical Appendix',
+    'Glossary',
+  ];
+
+  const tocPage = fullReport
+    ? card(`
+      ${h3('Table of Contents')}
+      <div style="font-size:13px;color:${TEXT_MUTED};line-height:1.9;">
+        ${tocItems.map((t, idx) => `<div>${idx + 1}. ${esc(t)}</div>`).join('')}
+      </div>
+    `, INFO_BG, ACCENT)
+    : '';
+
+  const topFailedChecks = allFailedChecks.slice(0, 5);
+  const topIssues = allIssues.slice(0, 5);
+
+  const keyFindingsPage = fullReport
+    ? sectionTitle('Key Findings') +
+      card(`
+        ${p('This section highlights the most actionable findings from the scan. Review the detailed sections that follow for full context.')}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div>
+            ${h3(`Top Failed Checks (${allFailedChecks.length})`)}
+            ${topFailedChecks.length
+              ? topFailedChecks.map((c) => `<div style="padding:10px 12px;border:1px solid ${BORDER};border-radius:10px;margin-bottom:10px;background:${FAIL_BG};">
+                  <div style="font-size:13px;font-weight:700;color:${TEXT};margin-bottom:4px;">${esc(c.name)}</div>
+                  <div style="font-size:12px;color:${TEXT_MUTED};line-height:1.5;">${esc(c.detail || '')}</div>
+                  ${c.recommendation ? `<div style="margin-top:8px;font-size:12px;color:#854d0e;"><strong>Fix:</strong> ${esc(c.recommendation)}</div>` : ''}
+                </div>`).join('')
+              : `<div style="font-size:13px;color:${SUCCESS};">No failed checks detected.</div>`}
+          </div>
+          <div>
+            ${h3(`Top AI Findings (${allIssues.length})`)}
+            ${topIssues.length
+              ? topIssues.map((i) => `<div style="padding:10px 12px;border:1px solid ${BORDER};border-radius:10px;margin-bottom:10px;background:${severityBg(i.severity)};">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                    <div style="font-size:13px;font-weight:700;color:${TEXT};">${esc(i.title)}</div>
+                    <div style="font-size:10px;font-weight:800;letter-spacing:1px;color:${severityColor(i.severity)};">${i.severity.toUpperCase()}</div>
+                  </div>
+                  <div style="font-size:12px;color:${TEXT_MUTED};line-height:1.5;margin-top:4px;">${esc(i.description)}</div>
+                  ${i.fix ? `<div style="margin-top:8px;font-size:12px;color:#166534;"><strong>Fix:</strong> ${esc(i.fix)}</div>` : ''}
+                </div>`).join('')
+              : `<div style="font-size:13px;color:${SUCCESS};">No AI findings detected.</div>`}
+          </div>
+        </div>
+      `, WHITE, BORDER)
+    : '';
 
   const scoreBreakdown = card(`
     ${h3('Compliance Score Breakdown')}
@@ -352,6 +414,68 @@ export function generateReportHtml(url: string, result: ScanResult, fullReport =
       </div>
     `, INFO_BG);
 
+  const methodologySection = fullReport
+    ? sectionTitle('Methodology and Limitations') +
+      card(`
+        ${p('This report is generated from an automated scan. It combines (1) deterministic rule checks and (2) AI-assisted analysis based on observed content and detected signals.')}
+        ${h3('What We Check')}
+        <div style="font-size:13px;color:${TEXT_MUTED};line-height:1.8;">
+          <div><strong>Technical signals:</strong> HTTPS, forms, tracking scripts, embeds, cookie banner indicators.</div>
+          <div><strong>Policy signals:</strong> presence of privacy/cookie policy pages and policy disclosures.</div>
+          <div><strong>AI signals:</strong> issues inferred from patterns common to GDPR requirements.</div>
+        </div>
+        ${h3('Limitations')}
+        <div style="font-size:13px;color:${TEXT_MUTED};line-height:1.8;">
+          <div>Automated scanning cannot confirm internal processing activities, contracts, or organisational measures.</div>
+          <div>Some requirements depend on business context (legal bases, retention, international transfers).</div>
+          <div>Results may include false positives/negatives due to dynamic content or blocked resources.</div>
+        </div>
+      `, INFO_BG, ACCENT)
+    : '';
+
+  const technicalAppendix = fullReport
+    ? sectionTitle('Technical Appendix') +
+      card(`
+        ${h3('Detected Signals')}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div style="font-size:13px;color:${TEXT_MUTED};line-height:1.8;">
+            <div><strong>Status Code:</strong> ${esc(String(crawl.statusCode ?? 'Unknown'))}</div>
+            <div><strong>HTTPS Enabled:</strong> ${crawl.hasSSL ? `<span style="color:${SUCCESS};font-weight:700;">Yes</span>` : `<span style="color:${FAIL};font-weight:700;">No</span>`}</div>
+            <div><strong>Forms:</strong> ${esc(String(crawl.formsCount ?? 0))}</div>
+            <div><strong>Form Inputs Labeled:</strong> ${esc(String((crawl as any).formInputsLabeled ?? 'n/a'))} / ${esc(String((crawl as any).totalFormInputs ?? 'n/a'))}</div>
+          </div>
+          <div style="font-size:13px;color:${TEXT_MUTED};line-height:1.8;">
+            <div><strong>Privacy Policy URL:</strong> ${(crawl as any).privacyPolicyUrl ? esc((crawl as any).privacyPolicyUrl) : 'n/a'}</div>
+            <div><strong>Cookie Banner:</strong> ${(crawl as any).hasCookieBanner ? `<span style="color:${SUCCESS};font-weight:700;">Detected</span>` : `<span style="color:${WARN};font-weight:700;">Not detected</span>`}</div>
+            <div><strong>Cookie Policy:</strong> ${(crawl as any).hasCookiePolicyPage ? `<span style="color:${SUCCESS};font-weight:700;">Found</span>` : `<span style="color:${WARN};font-weight:700;">Not detected</span>`}</div>
+          </div>
+        </div>
+        ${h3('Tracking Scripts')}
+        ${crawl.trackingScripts?.length
+          ? `<div style="font-size:12px;color:${TEXT_MUTED};line-height:1.6;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;">
+              ${crawl.trackingScripts.map((s: string) => `<div style="padding:6px 0;border-bottom:1px solid ${BORDER};word-break:break-all;">${esc(s)}</div>`).join('')}
+            </div>`
+          : `<div style="font-size:13px;color:${TEXT_MUTED};">No tracking scripts detected.</div>`}
+        ${h3('Third-Party Embeds')}
+        ${crawl.thirdPartyEmbeds?.length
+          ? `<div style="font-size:13px;color:${TEXT_MUTED};line-height:1.8;">${crawl.thirdPartyEmbeds.map((e: string) => `<div>• ${esc(e)}</div>`).join('')}</div>`
+          : `<div style="font-size:13px;color:${TEXT_MUTED};">No third-party embeds detected.</div>`}
+      `, WHITE, BORDER)
+    : '';
+
+  const glossary = fullReport
+    ? sectionTitle('Glossary') +
+      card(`
+        <div style="font-size:13px;color:${TEXT_MUTED};line-height:1.8;">
+          <div><strong>Controller:</strong> Entity that determines the purposes and means of processing.</div>
+          <div><strong>Processor:</strong> Entity that processes personal data on behalf of a controller.</div>
+          <div><strong>Legal Basis:</strong> The GDPR justification for processing (consent, contract, legitimate interest, etc.).</div>
+          <div><strong>CMP:</strong> Consent Management Platform controlling cookie and tracking consent.</div>
+          <div><strong>SCCs:</strong> Standard Contractual Clauses for international data transfers.</div>
+        </div>
+      `, INFO_BG, ACCENT)
+    : '';
+
   const remediationItems = [
     ...displayedFailedChecks.map(c => ({ text: `Fix: ${esc(c.name)} — ${esc(c.recommendation || 'See recommendation above')}`, done: false })),
     ...(displayedIssues.filter((i: AIIssue) => i.fix).map((i: AIIssue) => ({ text: `AI Fix: ${esc(i.title)} — ${esc(i.fix)}`, done: false }))),
@@ -389,10 +513,14 @@ export function generateReportHtml(url: string, result: ScanResult, fullReport =
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .no-print { display: none !important; }
   }
+  .page-break { break-before: page; page-break-before: always; }
+  .avoid-break { break-inside: avoid; page-break-inside: avoid; }
   * { box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 800px; margin: 0 auto; padding: 40px 24px; color: ${TEXT}; background: ${WHITE}; font-size: 13px; line-height: 1.5; }
   a { color: ${ACCENT}; text-decoration: none; }
   `;
+
+  const prefacePages = fullReport ? `${tocPage}${pageBreak()}${keyFindingsPage}${pageBreak()}` : '';
 
   return `<!DOCTYPE html>
 <html>
@@ -404,6 +532,7 @@ export function generateReportHtml(url: string, result: ScanResult, fullReport =
 </head>
 <body>
   ${coverPage}
+  ${prefacePages}
   ${execSummary}
   ${scoreBreakdown}
   ${checksSection}
@@ -411,6 +540,12 @@ export function generateReportHtml(url: string, result: ScanResult, fullReport =
   ${policySection}
   ${gdprRef}
   ${remediationSection}
+  ${fullReport ? pageBreak() : ''}
+  ${methodologySection}
+  ${fullReport ? pageBreak() : ''}
+  ${technicalAppendix}
+  ${fullReport ? pageBreak() : ''}
+  ${glossary}
   ${footer}
 </body>
 </html>`;
