@@ -8,6 +8,32 @@ function packToCredits(pack: Pack): number {
   return pack === 'credits_10' ? 10 : 3;
 }
 
+function packToAmount(pack: Pack): number {
+  return pack === 'credits_10' ? 7900 : 2900;
+}
+
+async function resolveFallbackPriceId(stripeKey: string, pack: Pack): Promise<string | undefined> {
+  const amount = packToAmount(pack);
+  const resp = await fetch('https://api.stripe.com/v1/prices?active=true&limit=100', {
+    headers: {
+      Authorization: `Bearer ${stripeKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+  });
+
+  if (!resp.ok) return undefined;
+
+  const data = await resp.json() as { data?: Array<{ id: string; type?: string; currency?: string; unit_amount?: number; active?: boolean }> };
+  const price = (data.data || []).find((p) =>
+    p?.active !== false &&
+    p?.type === 'one_time' &&
+    p?.currency === 'usd' &&
+    Number(p?.unit_amount) === amount
+  );
+
+  return price?.id || undefined;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const token = getBearerToken(request) || request.cookies.get('session_token')?.value || request.cookies.get('session')?.value;
@@ -37,10 +63,14 @@ export async function POST(request: NextRequest) {
     const stripeSecrets = getStripeSecrets(request as any);
     if (!stripeSecrets) return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 });
 
-    const priceId =
+    let priceId =
       pack === 'credits_3'
         ? stripeSecrets.STRIPE_PRICE_CREDITS_3?.trim()
         : stripeSecrets.STRIPE_PRICE_CREDITS_10?.trim();
+
+    if (!priceId) {
+      priceId = await resolveFallbackPriceId(stripeSecrets.STRIPE_SECRET_KEY, pack);
+    }
 
     if (!priceId) return NextResponse.json({ error: 'Credit pack price not configured' }, { status: 500 });
 
