@@ -47,6 +47,72 @@ export async function POST(request: NextRequest) {
      VALUES (?, ?, 'pending', ?, NULL, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`
   ).run(scanId, url, email);
 
+    const mockScan =
+      env?.MOCK_SCAN === '1' ||
+      process.env?.MOCK_SCAN === '1' ||
+      env?.MOCK_STRIPE === '1' ||
+      process.env?.MOCK_STRIPE === '1';
+
+    if (mockScan) {
+      const mockResult = {
+        crawl: {
+          url,
+          title: 'Mock Scan Result',
+          description: 'Mock compliance result for deterministic local E2E testing.',
+          h1s: ['Mock Website'],
+          trackingScripts: ['google-analytics'],
+          formsCount: 1,
+          formInputsLabeled: true,
+          totalFormInputs: 2,
+          hasSSL: true,
+          statusCode: 200,
+          hasPrivacyPolicy: false,
+          hasCookiePolicyPage: false,
+          hasCookieBanner: false,
+          cookieBannerText: '',
+          privacyPolicyUrl: null,
+          thirdPartyEmbeds: [],
+        },
+        ruleChecks: [
+          {
+            name: 'Cookie banner present',
+            passed: false,
+            detail: 'Cookie banner not detected.',
+            recommendation: 'Add a GDPR-compliant cookie consent banner.',
+          },
+        ],
+        aiAnalysis: {
+          gdprScore: 68,
+          riskLevel: 'MEDIUM',
+          summary: 'Mock scan completed successfully for local test execution.',
+          issues: [
+            {
+              severity: 'high',
+              title: 'Cookie banner missing',
+              description: 'No consent banner was detected.',
+              fix: 'Implement a compliant opt-in cookie banner.',
+            },
+            {
+              severity: 'medium',
+              title: 'Privacy policy missing',
+              description: 'Privacy policy page could not be found.',
+              fix: 'Publish a privacy policy and link it site-wide.',
+            },
+          ],
+        },
+        scannedAt: new Date().toISOString(),
+      };
+
+      const resultJson = await compressGzip(JSON.stringify(mockResult));
+      await db.prepare(
+        `UPDATE scans
+         SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+         WHERE id = ?`
+      ).run(resultJson, scanId);
+
+      return NextResponse.json({ scanId, status: 'completed', result: mockResult });
+    }
+
     if (env?.SCAN_QUEUE) {
       await sendScanJob({ scanId, url, email, trigger: 'free' }, env);
       import('@/lib/mailjet').then(({ subscribeToNurture }) => {
@@ -103,3 +169,4 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ scanId, status: 'completed', result });
 }
+

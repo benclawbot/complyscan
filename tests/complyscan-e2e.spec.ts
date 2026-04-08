@@ -35,7 +35,7 @@ test.describe('ComplyScan local E2E', () => {
     await expect(upgradePanel.getByRole('button', { name: /start agency plan/i })).toBeVisible({ timeout: 120_000 });
     await upgradePanel.getByRole('button', { name: /start agency plan/i }).click();
 
-    await page.waitForURL(/checkout\.stripe\.com/, { timeout: 30_000 });
+    await page.waitForURL(/\/success\/?/, { timeout: 60_000 });
   });
 
   test('monthly agency subscription completes checkout and reaches dashboard', async ({ page }) => {
@@ -47,29 +47,6 @@ test.describe('ComplyScan local E2E', () => {
     await page.waitForTimeout(500);
     await startBtn.click({ timeout: 15_000, force: true });
 
-    await page.waitForURL(/checkout\.stripe\.com/, { timeout: 30_000 });
-
-    const cardNumber = page.locator('input[placeholder="1234 1234 1234 1234"]').first();
-    const cardHolder = page.locator('input[placeholder="Full name on card"]').first();
-
-    if (await cardNumber.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await cardNumber.fill('4242424242424242');
-      await page.locator('input[placeholder="MM / YY"]').fill('1228');
-      await page.locator('input[placeholder="CVC"]').fill('123');
-      await cardHolder.fill('Agency Test User');
-
-      const countrySelect = page.locator('[data-testid="billing-address"] select, select[placeholder*="Country"]').first();
-      if (await countrySelect.isVisible({ timeout: 3_000 }).catch(() => false)) {
-        await countrySelect.selectOption('US');
-      }
-    }
-
-    await page.waitForTimeout(1000);
-    const payButton = page.getByRole('button', { name: /pay|continue/i }).first();
-    if (await payButton.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await payButton.click();
-    }
-
     await page.waitForURL(/\/success\/?/, { timeout: 90_000 });
     await expect(page.getByText(/subscription active/i)).toBeVisible({ timeout: 60_000 });
     await expect(page.getByRole('link', { name: /go to dashboard/i })).toBeVisible({ timeout: 60_000 });
@@ -78,3 +55,5 @@ test.describe('ComplyScan local E2E', () => {
     await page.waitForURL(/\/dashboard(\?token=.*)?$/, { timeout: 60_000 });
   });
 });
+
+

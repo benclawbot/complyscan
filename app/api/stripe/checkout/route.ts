@@ -12,7 +12,10 @@ export async function POST(request: NextRequest) {
       scanId?: string;
     };
 
-    if (!websiteUrl) {
+    const normalizedPlan = plan === 'agency' ? 'monthly' : plan;
+    const requiresUrl = normalizedPlan !== 'monthly';
+
+    if (requiresUrl && !websiteUrl) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
@@ -114,3 +117,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: err?.message || 'Checkout failed' }, { status: 500 });
   }
 }
+
