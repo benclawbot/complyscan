@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function SuccessClient() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('session_id');
-  const scanId = searchParams.get('scan_id');
   const plan = searchParams.get('plan');
-  const url = searchParams.get('url');
   const email = searchParams.get('email');
 
   const [subscriberToken, setSubscriberToken] = useState<string | null>(null);
@@ -29,6 +28,8 @@ export default function SuccessClient() {
           if (data?.subscriberToken) {
             setSubscriberToken(data.subscriberToken);
             document.cookie = `session_token=${encodeURIComponent(data.subscriberToken)}; path=/; SameSite=Lax`;
+            router.replace(`/dashboard?token=${encodeURIComponent(data.subscriberToken)}`);
+            return;
           } else if (data?.customerEmail) {
             setCustomerEmail(data.customerEmail);
           } else if (attempts < 20) {
@@ -44,7 +45,7 @@ export default function SuccessClient() {
         });
     };
     poll();
-  }, [sessionId, plan]);
+  }, [sessionId, plan, router]);
 
   if (plan === 'monthly') {
     const dashboardUrl = subscriberToken ? `/dashboard?token=${encodeURIComponent(subscriberToken)}` : '/dashboard';

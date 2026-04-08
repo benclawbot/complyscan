@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 import { getDb, getRuntimeEnv, getStripeSecrets } from '@/lib/env';
 import { retrieveCheckoutSession } from '@/lib/stripe-api';
 
@@ -43,14 +45,51 @@ export async function GET(request: NextRequest) {
       customerEmail: session.customer_email || null,
     };
 
-    if (session.mode === 'subscription' && session.customer) {
-      const subscriber = await db.prepare('SELECT id, email FROM subscribers WHERE stripe_customer_id = ?').get(session.customer as string) as any;
-      if (subscriber) {
-        const tokenRec = await db.prepare(
-          'SELECT token FROM subscriber_tokens WHERE subscriber_id = ? ORDER BY created_at DESC LIMIT 1'
-        ).get(subscriber.id) as any;
-        result.subscriberToken = tokenRec?.token || null;
-        result.customerEmail = subscriber.email || result.customerEmail;
+    if (session.mode === 'subscription') {
+      const stripeCustomerId = String(session.customer || '');
+      const sessionCustomerEmail = String(session.customer_email || '').trim();
+      const subscriptionIsComplete = String(session.status || '') === 'complete';
+
+      if (stripeCustomerId) {
+        let subscriber = await db.prepare('SELECT id, email FROM subscribers WHERE stripe_customer_id = ?').get(stripeCustomerId) as any;
+
+        // Self-heal path: if webhook is delayed/missed, bootstrap subscriber + token from a completed checkout session.
+        if (!subscriber && subscriptionIsComplete && sessionCustomerEmail) {
+          const subscriberId = uuidv4();
+          await db.prepare(`
+            INSERT INTO subscribers (id, stripe_customer_id, email, plan, status, current_period_end, cancel_at_period_end, updated_at)
+            VALUES (?, ?, ?, 'agency', 'active', NULL, 0, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+          `).run(subscriberId, stripeCustomerId, sessionCustomerEmail);
+
+          const token = crypto.randomBytes(24).toString('hex');
+          await db.prepare(`
+            INSERT INTO subscriber_tokens (token, subscriber_id, created_at, last_used_at)
+            VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+          `).run(token, subscriberId);
+
+          subscriber = { id: subscriberId, email: sessionCustomerEmail };
+          result.subscriberToken = token;
+          result.customerEmail = sessionCustomerEmail;
+        }
+
+        if (subscriber && !result.subscriberToken) {
+          const tokenRec = await db.prepare(
+            'SELECT token FROM subscriber_tokens WHERE subscriber_id = ? ORDER BY created_at DESC LIMIT 1'
+          ).get(subscriber.id) as any;
+
+          if (tokenRec?.token) {
+            result.subscriberToken = tokenRec.token;
+          } else if (subscriptionIsComplete) {
+            const token = crypto.randomBytes(24).toString('hex');
+            await db.prepare(`
+              INSERT INTO subscriber_tokens (token, subscriber_id, created_at, last_used_at)
+              VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+            `).run(token, subscriber.id);
+            result.subscriberToken = token;
+          }
+
+          result.customerEmail = subscriber.email || result.customerEmail;
+        }
       }
     }
 
