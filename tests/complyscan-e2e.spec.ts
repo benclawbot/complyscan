@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 const TEST_URL = 'https://example.com';
+const BASE_URL = process.env.BASE_URL || '';
+const IS_PROD_E2E = /complyscan\.pages\.dev/.test(BASE_URL);
 
 function uniqueEmail(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`;
@@ -35,7 +37,11 @@ test.describe('ComplyScan local E2E', () => {
     await expect(upgradePanel.getByRole('button', { name: /start agency plan/i })).toBeVisible({ timeout: 120_000 });
     await upgradePanel.getByRole('button', { name: /start agency plan/i }).click();
 
-    await page.waitForURL(/\/success\/?/, { timeout: 60_000 });
+    if (IS_PROD_E2E) {
+      await page.waitForURL(/checkout\.stripe\.com/, { timeout: 60_000 });
+    } else {
+      await page.waitForURL(/\/success\/?/, { timeout: 60_000 });
+    }
   });
 
   test('monthly agency subscription completes checkout and reaches dashboard', async ({ page }) => {
@@ -47,6 +53,11 @@ test.describe('ComplyScan local E2E', () => {
     await page.waitForTimeout(500);
     await startBtn.click({ timeout: 15_000, force: true });
 
+    if (IS_PROD_E2E) {
+      await page.waitForURL(/checkout\.stripe\.com/, { timeout: 60_000 });
+      return;
+    }
+
     await page.waitForURL(/\/success\/?/, { timeout: 90_000 });
     await expect(page.getByText(/subscription active/i)).toBeVisible({ timeout: 60_000 });
     await expect(page.getByRole('link', { name: /go to dashboard/i })).toBeVisible({ timeout: 60_000 });
@@ -55,5 +66,8 @@ test.describe('ComplyScan local E2E', () => {
     await page.waitForURL(/\/dashboard(\?token=.*)?$/, { timeout: 60_000 });
   });
 });
+
+
+
 
 
