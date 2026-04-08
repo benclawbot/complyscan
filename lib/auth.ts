@@ -34,18 +34,41 @@ export async function touchSubscriberToken(db: DbClient, token: string) {
 }
 
 export async function getUserSession(db: DbClient, token: string) {
-  return await db.prepare(`
-    SELECT s.token, s.user_id, u.email, u.credits
-    FROM sessions s
-    JOIN users u ON s.user_id = u.id
-    WHERE s.token = ?
-  `).get(token) as any;
+  try {
+    return await db.prepare(`
+      SELECT s.token, s.user_id, u.email, u.credits
+      FROM sessions s
+      JOIN users u ON s.user_id = u.id
+      WHERE s.token = ?
+    `).get(token) as any;
+  } catch (err: any) {
+    const message = String(err?.message || err || '');
+    const missingCreditsColumn = /no such column: u\.credits/i.test(message) || /no such column.*credits/i.test(message);
+    if (!missingCreditsColumn) throw err;
+
+    const row = await db.prepare(`
+      SELECT s.token, s.user_id, u.email
+      FROM sessions s
+      JOIN users u ON s.user_id = u.id
+      WHERE s.token = ?
+    `).get(token) as any;
+
+    if (!row) return null;
+    return { ...row, credits: 0 };
+  }
 }
 
 export async function touchUserSession(db: DbClient, token: string) {
-  await db.prepare(`
-    UPDATE sessions
-    SET last_used_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-    WHERE token = ?
-  `).run(token);
+  try {
+    await db.prepare(`
+      UPDATE sessions
+      SET last_used_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+      WHERE token = ?
+    `).run(token);
+  } catch (err: any) {
+    const message = String(err?.message || err || '');
+    const missingLastUsed = /no such column: last_used_at/i.test(message) || /no such column.*last_used_at/i.test(message);
+    if (!missingLastUsed) throw err;
+    // Backward-compat for older DB schemas: ignore touch update when column is absent.
+  }
 }
