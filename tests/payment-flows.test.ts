@@ -35,24 +35,25 @@ describe('POST /api/stripe/checkout', () => {
     expect(hasKey).toBe(false);
   });
 
-  it('creates a one-time checkout session with correct params', async () => {
-    // Test that the checkout session params are built correctly
+  it('creates a subscription checkout session with customer email and metadata', async () => {
+    const email = 'test@test.com';
     const url = 'https://example.com';
     const scanId = 'scan-123';
     const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
 
     const params = {
-      mode: 'payment',
-      line_items: [{ price: 'price_test_single', quantity: 1 }],
+      mode: 'subscription',
+      line_items: [{ price: 'price_test_monthly', quantity: 1 }],
       customer_email: email,
-      success_url: `${appUrl}/success?session_id={CHECKOUT_SESSION_ID}&scan_id=${scanId}`,
+      success_url: `${appUrl}/success/{CHECKOUT_SESSION_ID}?scan_id=${scanId}&plan=monthly&url=${encodeURIComponent(url)}&email=${encodeURIComponent(email)}`,
       cancel_url: `${appUrl}/?cancelled=true`,
-      metadata: { scanId, url },
+      metadata: { scanId, url, plan: 'monthly' },
     };
 
-    expect(params.mode).toBe('payment');
+    expect(params.mode).toBe('subscription');
     expect(params.customer_email).toBe(email);
     expect(params.metadata.scanId).toBe(scanId);
+    expect(params.metadata.plan).toBe('monthly');
   });
 
   it('creates a subscription checkout session with correct params', async () => {
@@ -294,6 +295,7 @@ describe('Database operations', () => {
     expect(mockDb.prepare).toHaveBeenCalled();
   });
 });
+
 
 
 

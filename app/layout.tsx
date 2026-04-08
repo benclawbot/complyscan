@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     template: "%s | ComplyScan",
   },
   description:
-    "Instant automated GDPR compliance scan. No signup required. Detect cookie consent issues, privacy policy gaps, tracking script risks, and more. Get a PDF report in minutes.",
+    "Instant automated GDPR compliance scan. No signup required. Detect cookie consent issues, privacy policy gaps, tracking script risks, and more. Get a full report in minutes.",
   keywords: [
     "GDPR compliance scanner",
     "free GDPR compliance checker",
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     "GDPR audit tool",
     "GDPR compliance software agencies",
     "AI GDPR compliance checker",
-    "GDPR PDF report",
+    "GDPR full report",
     "website privacy compliance",
   ],
   alternates: {
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "ComplyScan — Instant GDPR Compliance Checker",
     description:
-      "Instant automated GDPR compliance scan. No signup required. Get a PDF report in minutes.",
+      "Instant automated GDPR compliance scan. No signup required. Get a full report in minutes.",
     type: "website",
     locale: "en_US",
     siteName: "ComplyScan",
@@ -58,7 +58,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "ComplyScan — Instant GDPR Compliance Checker",
     description:
-      "Instant automated GDPR compliance scan. No signup required. Get a PDF report in minutes.",
+      "Instant automated GDPR compliance scan. No signup required. Get a full report in minutes.",
     site: "@ComplyScan",
     creator: "@ComplyScan",
     images: "/og",
@@ -101,7 +101,7 @@ export default function RootLayout({
               url: BASE_URL,
               logo: `${BASE_URL}/og`,
               description:
-                "AI-powered GDPR compliance scanner. Scan any website and get a detailed PDF report with actionable fix recommendations.",
+                "AI-powered GDPR compliance scanner. Scan any website and get a detailed compliance report with actionable fix recommendations.",
               sameAs: [
                 "https://twitter.com/ComplyScan",
                 "https://www.linkedin.com/company/complyscan",
@@ -140,7 +140,7 @@ export default function RootLayout({
                 description: "Free tier with 3 scans per month",
               },
               description:
-                "AI-powered GDPR compliance scanner that analyses websites and generates PDF audit reports with remediation advice.",
+                "AI-powered GDPR compliance scanner that analyses websites and generates actionable compliance reports with remediation advice.",
               aggregateRating: {
                 "@type": "AggregateRating",
                 ratingValue: "4.8",
@@ -156,3 +156,10 @@ export default function RootLayout({
     </html>
   );
 }
+
+
+
+
+
+
+

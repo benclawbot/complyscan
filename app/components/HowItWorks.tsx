@@ -20,9 +20,9 @@ const steps = [
   },
   {
     icon: MailCheck,
-    title: "Get your PDF report",
+    title: "Get your full report",
     description:
-      "Receive a detailed compliance report with every issue, severity rating, legal references, and step-by-step fix guides.",
+      "Review a detailed compliance report with every issue, severity rating, legal references, and step-by-step fix guides. Print or save as PDF from your browser.",
     accent: "success",
   },
 ];
@@ -88,3 +88,4 @@ export function HowItWorks() {
     </section>
   );
 }
+

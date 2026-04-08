@@ -17,14 +17,12 @@
   "dependencies": {
     "@libsql/client": "^0.17.2",
     "@neondatabase/serverless": "^1.0.2",
-    "@react-pdf/renderer": "^4.3.2",
     "@stripe/stripe-js": "latest",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/pg": "^8.20.0",
     "better-sqlite3": "^12.8.0",
     "clsx": "latest",
     "html2canvas": "^1.4.1",
-    "jspdf": "^4.2.1",
     "linkedom": "^0.18.12",
     "lucide-react": "latest",
     "next": "latest",
@@ -63,3 +61,5 @@
     "wrangler": "^4.80.0"
   }
 }
+
+

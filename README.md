@@ -1,6 +1,6 @@
 # ComplyScan — GDPR Compliance Checker
 
-Automated GDPR compliance scanning: enter a URL, receive a PDF report with findings and fix suggestions.
+Automated GDPR compliance scanning: enter a URL and receive a full report with findings and fix suggestions.
 
 ## Tech Stack
 
@@ -8,7 +8,7 @@ Automated GDPR compliance scanning: enter a URL, receive a PDF report with findi
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS
 - **Payments:** Stripe (UI only in this repo)
-- **Email:** Resend (UI only in this repo)
+- **Email:** Mailjet
 
 ## Prerequisites
 
@@ -65,3 +65,5 @@ app/
 - The `/api/scan` route is a UI placeholder. Backend logic is implemented in TASK-002.
 - Stripe Checkout buttons are UI placeholders. Full Stripe integration is in TASK-003.
 - Email functionality is UI placeholder only. Email delivery is in TASK-003.
+
+

@@ -19,7 +19,7 @@ const faqs = [
   {
     question: "What happens after payment?",
     answer:
-      "After successful payment, your scan is automatically triggered and typically completes within 2 minutes. A PDF report is then emailed to you with a detailed breakdown of every compliance issue found, its severity, and actionable fix recommendations.",
+      "After successful payment, your scan is automatically triggered and typically completes within 2 minutes. Your full report is available in-app with a detailed breakdown of every compliance issue found, its severity, and actionable fix recommendations.",
   },
   {
     question: "Can I get a refund?",
@@ -86,3 +86,4 @@ export function FAQ() {
     </section>
   );
 }
+

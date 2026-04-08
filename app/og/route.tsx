@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   const title = searchParams.get('title') || 'GDPR Compliance Scanner';
   const description =
     searchParams.get('description') ||
-    'Scan any website for GDPR compliance. Get a detailed PDF report with AI-powered analysis and actionable fix recommendations — free.';
+    'Scan any website for GDPR compliance. Get a detailed report with AI-powered analysis and actionable fix recommendations — free.';
   const score = searchParams.get('score');
 
   return new ImageResponse(
@@ -163,3 +163,4 @@ export async function GET(request: NextRequest) {
     }
   );
 }
+

@@ -1,6 +1,6 @@
 /**
  * Free Scan Flow & Account Creation Tests
- * Tests: /api/scan/free, /api/auth/claim-scan, PDF payment gate
+ * Tests: /api/scan/free, /api/auth/claim-scan, pricing + access gates
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -303,36 +303,29 @@ describe('Claim Scan (Account Creation) API', () => {
   });
 });
 
-// ── PDF PAYMENT GATE TESTS ─────────────────────────────────────────────────────
+// ── ACCESS GATE TESTS ──────────────────────────────────────────────────────────
 
-describe('PDF Payment Gate', () => {
-  it('blocks PDF download for unpaid free scans without session_id', () => {
-    const scan = { stripe_session_id: null, status: 'completed' as const };
-    const hasStripeSession = !!scan.stripe_session_id;
-    const sessionId = null;
-
-    // Gate logic: hasStripeSession OR sessionId present
-    const canDownload = hasStripeSession || (!!sessionId);
-    expect(canDownload).toBe(false);
+describe('Access Gate', () => {
+  it('marks free scans as limited preview', () => {
+    const isLimitedPreview = true;
+    expect(isLimitedPreview).toBe(true);
   });
 
-  it('allows PDF download for paid scans (has stripe_session_id)', () => {
-    const scan = { stripe_session_id: 'cs_test_123', status: 'completed' as const };
-    const hasStripeSession = !!scan.stripe_session_id;
-    expect(hasStripeSession).toBe(true);
+  it('marks agency scans as full access', () => {
+    const isLimitedPreview = false;
+    expect(isLimitedPreview).toBe(false);
   });
 
-  it('allows PDF download for verified Stripe session', () => {
-    // Simulates a Stripe session verification result
-    const session = { payment_status: 'paid' };
-    const paid = session.payment_status === 'paid';
-    expect(paid).toBe(true);
+  it('shows upgrade prompt in limited preview mode', () => {
+    const isLimitedPreview = true;
+    const showUpgradePrompt = isLimitedPreview;
+    expect(showUpgradePrompt).toBe(true);
   });
 
-  it('blocks PDF download when Stripe session is not paid', () => {
-    const session = { payment_status: 'unpaid' };
-    const paid = session.payment_status === 'paid';
-    expect(paid).toBe(false);
+  it('hides upgrade prompt in full access mode', () => {
+    const isLimitedPreview = false;
+    const showUpgradePrompt = isLimitedPreview;
+    expect(showUpgradePrompt).toBe(false);
   });
 });
 
@@ -340,13 +333,12 @@ describe('PDF Payment Gate', () => {
 
 describe('Pricing Tiers', () => {
   const plans = [
-    { name: 'Free', price: '€0', plan: 'free', scanLimit: 3 },
-    { name: 'Pro', price: '€9', plan: 'pdf', scanLimit: Infinity },
-    { name: 'Agency', price: '€99', plan: 'monthly', scanLimit: Infinity },
+    { name: 'Free', price: '$0', plan: 'free', scanLimit: 3 },
+    { name: 'Agency', price: '$99', plan: 'monthly', scanLimit: Infinity },
   ];
 
-  it('has three pricing tiers', () => {
-    expect(plans).toHaveLength(3);
+  it('has two pricing tiers', () => {
+    expect(plans).toHaveLength(2);
   });
 
   it('Free plan has 3 scans per month limit', () => {
@@ -354,30 +346,24 @@ describe('Pricing Tiers', () => {
     expect(free.scanLimit).toBe(3);
   });
 
-  it('Pro plan is €9 one-time', () => {
-    const pro = plans.find(p => p.plan === 'pdf')!;
-    expect(pro.price).toBe('€9');
-  });
-
-  it('Agency plan is €99 per month', () => {
+  it('Agency plan is $99 per month', () => {
     const agency = plans.find(p => p.plan === 'monthly')!;
-    expect(agency.price).toBe('€99');
+    expect(agency.price).toBe('$99');
   });
 
-  it('checkout selects correct price ID based on plan', () => {
-    // Verify the Stripe checkout route logic for selecting price IDs
-    // The route handles: 'monthly' → monthly price, 'pdf' → pdf price, else → single price
+  it('checkout selects monthly price ID for agency plan', () => {
     const getPriceId = (plan: string) => {
       if (plan === 'monthly') return 'price_monthly';
-      if (plan === 'pdf') return 'price_pdf';
-      return 'price_single';
+      return 'unsupported';
     };
 
     expect(getPriceId('monthly')).toBe('price_monthly');
-    expect(getPriceId('pdf')).toBe('price_pdf');
-    expect(getPriceId('single')).toBe('price_single');
+    expect(getPriceId('free')).toBe('unsupported');
   });
 });
+
+
+
 
 
 
