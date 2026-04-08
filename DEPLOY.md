@@ -6,8 +6,9 @@
 |---------|---------|-----------|
 | Cloudflare Pages | cloudflare.com | ✅ Yes (unlimited static pages) |
 | Stripe | dashboard.stripe.com | ✅ Yes (test mode) |
-| Resend | resend.com | ✅ 100 emails |
-| MiniMax API | api.minimax.io | ⚠️ Check your plan |
+| Mailjet | mailjet.com | ✅ Yes (varies) |
+| AI API (OpenAI-compatible) | your provider | ⚠️ Check your plan |
+| Cloudflare Browser Rendering | dash.cloudflare.com | ⚠️ Depends on plan |
 
 ---
 
@@ -15,17 +16,16 @@
 
 1. Go to **dashboard.stripe.com** → toggle **Test mode** (top right)
 
-2. **Create Single Scan product:**
-   - Products → Add product
-   - Name: `GDPR Compliance Scan`
-   - Price: $29.00 USD one-time
-   - Save → copy the `price_...` ID
-
-3. **Create Monthly Monitor product:**
+2. **Create Monthly Agency subscription:**
    - Products → Add product
    - Name: `Monthly GDPR Monitor`
    - Price: $99.00 USD / month (recurring)
    - Save → copy the `price_...` ID
+
+3. **Create credit packs (one-time payment):**
+   - Product: `ComplyScan Credits`
+   - Price A: $29 one-time (3 credits) → copy `price_...` as `STRIPE_PRICE_CREDITS_3`
+   - Price B: $79 one-time (10 credits) → copy `price_...` as `STRIPE_PRICE_CREDITS_10`
 
 4. **Get API keys:**
    - Developers → API keys
@@ -40,11 +40,13 @@
 
 ---
 
-## Step 2 — Resend Email (2 minutes)
+## Step 2 — Mailjet Email (2 minutes)
 
-1. Sign up at **resend.com**
-2. Domains → Add your domain (or use the free test domain Resend gives you)
-3. Copy your API key (`re_...`)
+Set these secrets if you want email nurture and report delivery:
+
+- `MAILJET_API_KEY`
+- `MAILJET_SECRET_KEY`
+- `MAILJET_LIST_ID`
 
 ---
 
@@ -81,25 +83,28 @@ git push -u origin main
 
 6. **Environment variables** — add these (Settings → Environment Variables):
    ```
-   # AI: MiniMax (OpenAI-compatible endpoint)
+   # AI (OpenAI-compatible)
    OPENAI_API_KEY=***
-   OPENAI_BASE_URL=https://api.minimax.io/v1
+   OPENAI_BASE_URL=***
 
    # Stripe
    STRIPE_SECRET_KEY=***
-   STRIPE_WEBHOOK_SECRET=***    # from: stripe listen --forward-to localhost:3000/api/stripe/webhook
-   STRIPE_PRICE_SINGLE_SCAN=price_...  # $29 one-time product
+   STRIPE_WEBHOOK_SECRET=***
    STRIPE_PRICE_MONTHLY=price_...      # $99/month recurring product
+   STRIPE_PRICE_CREDITS_3=price_...    # $29 one-time (3 credits)
+   STRIPE_PRICE_CREDITS_10=price_...   # $79 one-time (10 credits)
+
+   # Cloudflare Browser Rendering (serverless PDF)
+   CF_BROWSER_RENDERING_ACCOUNT_ID=***
+   CF_BROWSER_RENDERING_API_TOKEN=***
 
    # Email
-   RESEND_API_KEY=***
+   MAILJET_API_KEY=***
+   MAILJET_SECRET_KEY=***
+   MAILJET_LIST_ID=***
 
    # App
    NEXT_PUBLIC_APP_URL=https://complyscan.pages.dev
-   DATABASE_PATH=/tmp/complyscan.db
-
-   # Crawling
-   BROWSERLESS_API_KEY=your_browserless_key  # get free 10K credits at browserless.io
    ```
 
 7. **Deploy** → Copy your Cloudflare Pages URL (e.g. `complyscan.pages.dev`)
@@ -133,6 +138,6 @@ Trigger a new deployment to apply.
 
 ## Architecture Note
 
-The crawler runs synchronously in the Stripe webhook handler. For high traffic, move scan processing to a background job queue (e.g. Inngest, Trigger.dev, or a simple cron). Currently: payment → webhook → scan → email, all in one chain.
+Scans are designed to run via a Cloudflare Queue and a Worker (`workers/scan-processor/`) in production. Ensure your Pages project has the same bindings as `wrangler.toml` (D1 `DB`, Queue `SCAN_QUEUE`, optional `AI` and optional `REPORTS_BUCKET`).
 
 The frontend deploys to **Cloudflare Pages** (via OpenNext). A separate **Cloudflare Worker** (`workers/scan-processor/`) handles background scan processing via `wrangler.toml`.
