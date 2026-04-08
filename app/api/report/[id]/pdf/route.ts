@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, getRuntimeEnv, parseResultJson } from '@/lib/env';
 import { generatePDF } from '@/lib/report-pdf';
 import { buildMockScanResult } from '@/lib/mock-scan';
+import { getBearerToken, getSubscriberTokenRecord, getUserSession, touchSubscriberToken, touchUserSession } from '@/lib/auth';
+import { getBranding } from '@/lib/branding';
+import { hasUnlockedReport, unlockReportWithCredit } from '@/lib/report-access';
 
 async function getScanResult(db: ReturnType<typeof getDb>, scanId: string) {
   const scan = await db.prepare('SELECT * FROM scans WHERE id = ?').get(scanId) as any;
@@ -29,7 +32,7 @@ export async function GET(
   if (scanId === 'test') {
     const url = request.nextUrl.searchParams.get('url') || 'https://example.com';
     const mockResult = buildMockScanResult(url, true);
-    const pdf = await generatePDF({ url, result: mockResult, fullReport: true });
+    const pdf = await generatePDF({ url, result: mockResult as any, fullReport: true });
     return pdfResponse(pdf, 'gdpr-report-test');
   }
 
@@ -49,11 +52,54 @@ export async function GET(
     return NextResponse.json({ error: 'Scan failed. Please try again.' }, { status: 500 });
   }
 
+  const token = getBearerToken(request) || request.cookies.get('session_token')?.value || request.cookies.get('session')?.value || null;
+  let branding: any = null;
+
+  if (token) {
+    const sub = await getSubscriberTokenRecord(db, token);
+    if (sub) {
+      await touchSubscriberToken(db, token);
+      const authorized = !scan.subscriber_id || scan.subscriber_id === sub.subscriber_id || scan.email === sub.email;
+      if (!authorized) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      branding = await getBranding(db, { type: 'subscriber', id: sub.subscriber_id });
+    } else {
+      const user = await getUserSession(db, token);
+      if (user) {
+        await touchUserSession(db, token);
+        const authorized = !scan.user_id || scan.user_id === user.user_id || scan.email === user.email;
+        if (!authorized) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+        branding = await getBranding(db, { type: 'user', id: user.user_id });
+
+        // If not a subscriber scan, enforce unlock with credits for PDF generation.
+        if (!scan.subscriber_id) {
+          const unlocked = await hasUnlockedReport(db, scanId);
+          if (!unlocked) {
+            const ok = await unlockReportWithCredit(db, user.user_id, scanId);
+            if (!ok) {
+              return NextResponse.json(
+                { error: 'Payment required', code: 'NO_CREDITS', credits: Number(user.credits ?? 0) },
+                { status: 402 }
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Without auth, only subscribers can access PDFs. (Users must claim the scan and spend credits.)
+  if (!token && !scan.subscriber_id) {
+    return NextResponse.json({ error: 'Payment required', code: 'UNAUTHORIZED' }, { status: 401 });
+  }
+
   const fileBase = `gdpr-report-${scanId}`;
   const pdf = await generatePDF({
     url: scan.url || '',
-    result,
+    result: result as any,
     fullReport: true,
+    branding: branding ?? undefined,
+    env,
   });
   return pdfResponse(pdf, fileBase);
 }

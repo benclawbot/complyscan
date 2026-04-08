@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, getRuntimeEnv, parseResultJson, getStripeSecrets } from '@/lib/env';
 import { generateReportHtml } from '@/lib/report';
 import { retrieveCheckoutSession } from '@/lib/stripe-api';
+import { getBearerToken, getSubscriberTokenRecord, getUserSession, touchSubscriberToken, touchUserSession } from '@/lib/auth';
+import { getBranding } from '@/lib/branding';
+import { hasUnlockedReport } from '@/lib/report-access';
 
 async function getScanResult(db: ReturnType<typeof getDb>, scanId: string) {
   const scan = await db.prepare('SELECT * FROM scans WHERE id = ?').get(scanId) as any;
@@ -22,7 +25,35 @@ export async function GET(
   const { scan, result } = await getScanResult(db, scanId);
 
   if (result && scan?.status === 'completed') {
-    return NextResponse.json({ reportHtml: generateReportHtml(scan.url || '', result, true), url: scan.url || '' });
+    const token = getBearerToken(request) || request.cookies.get('session_token')?.value || request.cookies.get('session')?.value || null;
+    let branding: any = null;
+    let full = false;
+
+    if (token) {
+      const sub = await getSubscriberTokenRecord(db, token);
+      if (sub) {
+        await touchSubscriberToken(db, token);
+        const authorized = !scan.subscriber_id || scan.subscriber_id === sub.subscriber_id || scan.email === sub.email;
+        if (!authorized) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        branding = await getBranding(db, { type: 'subscriber', id: sub.subscriber_id });
+        full = true;
+      } else {
+        const user = await getUserSession(db, token);
+        if (user) {
+          await touchUserSession(db, token);
+          const authorized = !scan.user_id || scan.user_id === user.user_id || scan.email === user.email;
+          if (!authorized) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+          branding = await getBranding(db, { type: 'user', id: user.user_id });
+          full = scan.subscriber_id ? true : await hasUnlockedReport(db, scanId);
+        }
+      }
+    }
+
+    return NextResponse.json({
+      reportHtml: generateReportHtml(scan.url || '', result as any, full, branding ?? undefined),
+      url: scan.url || '',
+      fullReport: full,
+    });
   }
 
   if (!scan) {

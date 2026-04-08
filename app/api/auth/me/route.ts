@@ -46,5 +46,6 @@ export async function GET(request: NextRequest) {
     email: session.email,
     type: 'user',
     userId: session.user_id,
+    credits: Number(session.credits ?? 0),
   });
 }

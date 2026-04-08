@@ -1,6 +1,3 @@
-import fs from 'fs';
-import path from 'path';
-
 type MaybePromise<T> = T | Promise<T>;
 
 type StatementLike = {
@@ -49,6 +46,8 @@ export interface StripeSecrets {
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET?: string;
   STRIPE_PRICE_MONTHLY?: string;
+  STRIPE_PRICE_CREDITS_3?: string;
+  STRIPE_PRICE_CREDITS_10?: string;
 }
 
 export function getStripeSecrets(env?: any): StripeSecrets | null {
@@ -72,7 +71,37 @@ export function getStripeSecrets(env?: any): StripeSecrets | null {
       runtimeEnv?.STRIPE_PRICE_MONTHLY ??
       (globalThis as any).__env?.STRIPE_PRICE_MONTHLY ??
       processEnv?.STRIPE_PRICE_MONTHLY,
+    STRIPE_PRICE_CREDITS_3:
+      runtimeEnv?.STRIPE_PRICE_CREDITS_3 ??
+      (globalThis as any).__env?.STRIPE_PRICE_CREDITS_3 ??
+      processEnv?.STRIPE_PRICE_CREDITS_3,
+    STRIPE_PRICE_CREDITS_10:
+      runtimeEnv?.STRIPE_PRICE_CREDITS_10 ??
+      (globalThis as any).__env?.STRIPE_PRICE_CREDITS_10 ??
+      processEnv?.STRIPE_PRICE_CREDITS_10,
   };
+}
+
+export interface BrowserRenderingSecrets {
+  CF_BROWSER_RENDERING_ACCOUNT_ID: string;
+  CF_BROWSER_RENDERING_API_TOKEN: string;
+}
+
+export function getBrowserRenderingSecrets(env?: any): BrowserRenderingSecrets | null {
+  const runtimeEnv = getRuntimeEnv(env);
+  const processEnv = typeof process !== 'undefined' ? process.env : undefined;
+
+  const accountId =
+    runtimeEnv?.CF_BROWSER_RENDERING_ACCOUNT_ID ??
+    (globalThis as any).__env?.CF_BROWSER_RENDERING_ACCOUNT_ID ??
+    processEnv?.CF_BROWSER_RENDERING_ACCOUNT_ID;
+  const apiToken =
+    runtimeEnv?.CF_BROWSER_RENDERING_API_TOKEN ??
+    (globalThis as any).__env?.CF_BROWSER_RENDERING_API_TOKEN ??
+    processEnv?.CF_BROWSER_RENDERING_API_TOKEN;
+
+  if (!accountId || !apiToken) return null;
+  return { CF_BROWSER_RENDERING_ACCOUNT_ID: accountId, CF_BROWSER_RENDERING_API_TOKEN: apiToken };
 }
 
 function ensureLocalColumn(db: any, table: string, column: string, ddl: string) {
@@ -88,6 +117,7 @@ function initializeLocalSchema(db: any) {
       id TEXT PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
+      credits INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
     );
 
@@ -145,8 +175,20 @@ function initializeLocalSchema(db: any) {
     CREATE TABLE IF NOT EXISTS report_purchases (
       id TEXT PRIMARY KEY,
       scan_id TEXT NOT NULL,
+      user_id TEXT,
       stripe_payment_intent TEXT,
       purchased_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS brandings (
+      owner_type TEXT NOT NULL,
+      owner_id TEXT NOT NULL,
+      agency_name TEXT,
+      logo_url TEXT,
+      logo_data_url TEXT,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+      PRIMARY KEY (owner_type, owner_id)
     );
 
     CREATE INDEX IF NOT EXISTS idx_scans_status ON scans(status);
@@ -157,8 +199,11 @@ function initializeLocalSchema(db: any) {
     CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_agency_clients_subscriber ON agency_clients(agency_subscriber_id);
     CREATE INDEX IF NOT EXISTS idx_report_purchases_scan_id ON report_purchases(scan_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_report_purchases_scan_id_unique ON report_purchases(scan_id);
+    CREATE INDEX IF NOT EXISTS idx_brandings_owner ON brandings(owner_type, owner_id);
   `);
 
+  ensureLocalColumn(db, 'users', 'credits', 'credits INTEGER NOT NULL DEFAULT 0');
   ensureLocalColumn(db, 'subscribers', 'current_period_end', 'current_period_end TEXT');
   ensureLocalColumn(db, 'subscribers', 'cancel_at_period_end', 'cancel_at_period_end INTEGER NOT NULL DEFAULT 0');
   ensureLocalColumn(db, 'subscribers', 'updated_at', `updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`);
@@ -166,10 +211,16 @@ function initializeLocalSchema(db: any) {
   ensureLocalColumn(db, 'subscriber_tokens', 'last_used_at', 'last_used_at TEXT');
   ensureLocalColumn(db, 'scans', 'subscriber_id', 'subscriber_id TEXT');
   ensureLocalColumn(db, 'scans', 'user_id', 'user_id TEXT');
+  ensureLocalColumn(db, 'report_purchases', 'user_id', 'user_id TEXT');
 }
 
 function createLocalSqliteClient(): DbClient {
   if (!localDb) {
+    // Avoid importing node-only modules in edge/worker bundles.
+    // This branch is only used in local Node.js dev/test.
+    const fs = require('fs') as typeof import('fs');
+    const path = require('path') as typeof import('path');
+
     fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
      
     const Database = require('better-sqlite3');
@@ -309,8 +360,5 @@ export async function sendScanJob(job: { scanId: string; url: string; email?: st
   if (!runtimeEnv?.SCAN_QUEUE) return;
   await runtimeEnv.SCAN_QUEUE.send(job);
 }
-
-
-
 
 

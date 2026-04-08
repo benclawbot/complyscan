@@ -11,6 +11,7 @@ export default function ReportPage() {
 
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [reportHtml, setReportHtml] = useState<string | null>(null);
+  const [fullReport, setFullReport] = useState<boolean>(false);
 
   const handlePrint = () => {
     if (!reportHtml) return;
@@ -23,6 +24,16 @@ export default function ReportPage() {
     printWindow.print();
   };
 
+  const handleDownloadPdf = async () => {
+    if (!scanId) return;
+    const r = await fetch(`/api/report/${encodeURIComponent(scanId)}/pdf`);
+    if (!r.ok) return;
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  };
+
   useEffect(() => {
     if (!scanId) return;
 
@@ -30,9 +41,10 @@ export default function ReportPage() {
       const suffix = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : '';
       const r = await fetch(`/api/report/${encodeURIComponent(scanId)}${suffix}`);
       if (!r.ok) throw new Error('Report unavailable');
-      const data = await r.json() as { reportHtml?: string };
+      const data = await r.json() as { reportHtml?: string; fullReport?: boolean };
       if (!data.reportHtml) throw new Error('Missing report html');
       setReportHtml(data.reportHtml);
+      setFullReport(Boolean(data.fullReport));
       setStatus('ready');
     };
 
@@ -99,9 +111,12 @@ export default function ReportPage() {
         <div className="max-w-4xl mx-auto px-4 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-white font-semibold text-base">Your GDPR report is ready</h1>
-            <p className="text-white/40 text-xs">Use Print / Save as PDF in your browser if you want a downloadable copy.</p>
+            <p className="text-white/40 text-xs">{fullReport ? "Download a PDF or print from your browser." : "Preview report. Unlock to download the full PDF."}</p>
           </div>
           <div className="flex items-center gap-3">
+            <button onClick={handleDownloadPdf} className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-lg text-sm font-medium hover:bg-white/20 transition-all">
+              Download PDF
+            </button>
             <button onClick={handlePrint} className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-lg text-sm font-medium hover:bg-white/20 transition-all">
               Print / Save as PDF
             </button>
@@ -111,6 +126,11 @@ export default function ReportPage() {
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-6">
+        {!fullReport && (
+          <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-200 text-sm">
+            This is a preview. Go back to <a className="underline" href={`/scan-results/${encodeURIComponent(scanId)}`}>scan results</a> to unlock with credits.
+          </div>
+        )}
         <div className="bg-white rounded-xl overflow-hidden shadow-2xl">
           <iframe srcDoc={reportHtml} className="w-full" style={{ height: '80vh', border: 'none' }} title="GDPR Report" />
         </div>
@@ -118,5 +138,4 @@ export default function ReportPage() {
     </div>
   );
 }
-
 

@@ -1,4 +1,5 @@
 import type { CrawlResult } from './crawler';
+import { isNormalizedScanResultV2, normalizeScanResultV2, type NormalizedScanResultV2 } from './scan-normalize';
 
 export interface RuleCheck {
   id: string;
@@ -31,6 +32,12 @@ export interface ScanResult {
   aiAnalysis: AIAnalysis;
   scannedAt: string;
 }
+
+export type Branding = {
+  agencyName?: string | null;
+  logoUrl?: string | null;
+  logoDataUrl?: string | null;
+};
 
 const ACCENT = '#2563eb';
 const SUCCESS = '#16a34a';
@@ -159,15 +166,40 @@ function pageBreak(): string {
   return `<div class="page-break"></div>`;
 }
 
-export function generateReportHtml(url: string, result: ScanResult, fullReport = true): string {
-  const { crawl, ruleChecks, aiAnalysis, scannedAt } = result;
-  const score = aiAnalysis?.gdprScore ?? 0;
+function coerceToReportInput(url: string, result: any): {
+  crawl: CrawlResult;
+  ruleChecks: any[];
+  aiAnalysis: any;
+  scannedAt: string;
+  normalized: NormalizedScanResultV2;
+} {
+  if (isNormalizedScanResultV2(result)) {
+    return {
+      crawl: result.raw.crawl,
+      ruleChecks: result.raw.ruleChecks || [],
+      aiAnalysis: result.raw.aiAnalysis || {},
+      scannedAt: result.scannedAt,
+      normalized: result,
+    };
+  }
+
+  const crawl = result?.crawl as CrawlResult;
+  const ruleChecks = (result?.ruleChecks || []) as any[];
+  const aiAnalysis = result?.aiAnalysis || {};
+  const scannedAt = String(result?.scannedAt || new Date().toISOString());
+  const normalized = normalizeScanResultV2({ url, crawl, ruleChecks, aiAnalysis, scannedAt });
+  return { crawl, ruleChecks, aiAnalysis, scannedAt, normalized };
+}
+
+export function generateReportHtml(url: string, result: ScanResult | NormalizedScanResultV2, fullReport = true, branding?: Branding): string {
+  const { crawl, ruleChecks, aiAnalysis, scannedAt, normalized } = coerceToReportInput(url, result);
+  const score = normalized.score ?? 0;
   const scoreColorVal = scoreColor(score);
-  const risk = aiAnalysis?.riskLevel ?? 'unknown';
+  const risk = normalized.risk ?? 'medium';
   const passCount = ruleChecks.filter(c => c.passed).length;
   const failCount = ruleChecks.filter(c => !c.passed).length;
 
-  const allIssues = aiAnalysis?.issues ?? [];
+  const allIssues = normalized.issues ?? [];
   const displayedIssues = fullReport ? allIssues : allIssues.slice(0, 3);
   const hiddenIssueCount = allIssues.length - displayedIssues.length;
   const issueCount = displayedIssues.length;
@@ -277,7 +309,7 @@ export function generateReportHtml(url: string, result: ScanResult, fullReport =
                     <div style="font-size:13px;font-weight:700;color:${TEXT};">${esc(i.title)}</div>
                     <div style="font-size:10px;font-weight:800;letter-spacing:1px;color:${severityColor(i.severity)};">${i.severity.toUpperCase()}</div>
                   </div>
-                  <div style="font-size:12px;color:${TEXT_MUTED};line-height:1.5;margin-top:4px;">${esc(i.description)}</div>
+                  <div style="font-size:12px;color:${TEXT_MUTED};line-height:1.5;margin-top:4px;">${esc((i as any).impact || (i as any).description)}</div>
                   ${i.fix ? `<div style="margin-top:8px;font-size:12px;color:#166534;"><strong>Fix:</strong> ${esc(i.fix)}</div>` : ''}
                 </div>`).join('')
               : `<div style="font-size:13px;color:${SUCCESS};">No AI findings detected.</div>`}
@@ -337,15 +369,15 @@ export function generateReportHtml(url: string, result: ScanResult, fullReport =
     </div>` : '';
 
   const aiIssuesSection = displayedIssues.length
-    ? sectionTitle(`AI-Detected Issues (${displayedIssues.length} of ${allIssues.length} Shown)`) +
+    ? sectionTitle(`Issues (${displayedIssues.length} of ${allIssues.length} Shown)`) +
       aiUpgradeNote +
-      displayedIssues.map((issue: AIIssue) => card(`
+      displayedIssues.map((issue: any) => card(`
         <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:8px;">
           <div style="width:32px;height:32px;border-radius:50%;background:${severityBg(issue.severity)};border:2px solid ${severityColor(issue.severity)};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${severityColor(issue.severity)};flex-shrink:0;">${issue.severity === 'critical' ? 'CRIT' : issue.severity === 'warning' ? 'WARN' : 'INFO'}</div>
           <div style="flex:1;">
             <div style="font-size:14px;font-weight:600;color:${TEXT};margin-bottom:6px;">${esc(issue.title)}</div>
-            <div style="font-size:13px;color:${TEXT_MUTED};margin-bottom:${issue.fix || issue.gdprArticle ? '10px' : '0'};line-height:1.5;">${esc(issue.description)}</div>
-            ${issue.evidence ? `<div style="background:#f8fafc;border-radius:6px;padding:8px 10px;font-size:12px;color:#475569;font-family:monospace;margin-bottom:10px;word-break:break-all;">Evidence: ${esc(issue.evidence)}</div>` : ''}
+            <div style="font-size:13px;color:${TEXT_MUTED};margin-bottom:${issue.fix || issue.gdprArticle ? '10px' : '0'};line-height:1.5;">${esc(issue.impact || issue.description)}</div>
+            ${issue.evidence ? `<div style="background:#f8fafc;border-radius:6px;padding:8px 10px;font-size:12px;color:#475569;font-family:monospace;margin-bottom:10px;word-break:break-all;">Evidence: ${esc(typeof issue.evidence === 'string' ? issue.evidence : JSON.stringify(issue.evidence).slice(0, 800))}</div>` : ''}
             ${issue.fix ? `<div style="background:#f0fdf4;border-left:3px solid ${SUCCESS};padding:10px 12px;border-radius:0 6px 6px 0;font-size:13px;color:#166534;"><strong><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px"><circle cx="12" cy="12" r="11" fill="#16a34a"/><path d="M7 12.5l3.5 3.5 6.5-7" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>Recommended Fix:</strong><br>${esc(issue.fix)}</div>` : ''}
             ${issue.gdprArticle ? `<div style="font-size:11px;color:${ACCENT};margin-top:8px;"><svg width="11" height="11" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px"><rect x="3" y="3" width="18" height="18" rx="2" fill="#2563eb"/><path d="M8 12h8M8 8h8M8 16h4" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>${gdprArticleLabel(issue.gdprArticle)}</div>` : ''}
           </div>
@@ -503,7 +535,11 @@ export function generateReportHtml(url: string, result: ScanResult, fullReport =
 
   const footer = `
   <div style="margin-top:60px;padding-top:20px;border-top:1px solid ${BORDER};display:flex;justify-content:space-between;align-items:center;font-size:11px;color:${TEXT_MUTED};">
-    <div>Generated by <strong>ComplyScan</strong> — GDPR compliance made effortless</div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      ${branding?.logoUrl || branding?.logoDataUrl ? `<img alt="Logo" src="${esc(branding.logoUrl || branding.logoDataUrl)}" style="height:18px;max-width:140px;object-fit:contain;" />` : ''}
+      <span>Generated by <strong>${esc(branding?.agencyName || 'ComplyScan')}</strong></span>
+    </div>
+    <div>This tool provides automated analysis and does not constitute legal advice.</div>
     <div>Report generated: ${scanDate} · CONFIDENTIAL</div>
   </div>`;
 
@@ -552,6 +588,6 @@ export function generateReportHtml(url: string, result: ScanResult, fullReport =
 }
 
 // Compatibility alias used by newer PDF pipeline code paths.
-export function generateReportHTML(url: string, result: ScanResult, fullReport = true): string {
-  return generateReportHtml(url, result, fullReport);
+export function generateReportHTML(url: string, result: ScanResult | NormalizedScanResultV2, fullReport = true, branding?: Branding): string {
+  return generateReportHtml(url, result as any, fullReport, branding);
 }

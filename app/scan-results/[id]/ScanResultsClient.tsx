@@ -79,28 +79,40 @@ function normalizeIssue(c: any) {
 }
 
 function FindingsSection({ result, isLimitedPreview }: { result: any; isLimitedPreview?: boolean }) {
-  const all = result.ruleChecks || [];
+  const isV2 = result?.version === 2;
+
+  const all = isV2 ? [] : (result.ruleChecks || []);
   const critical = all.filter((c: any) => c.severity === "critical" || c.severity === "error").map(normalizeIssue);
   const warnings = all.filter((c: any) => c.severity === "warning" || c.passed === false).map(normalizeIssue);
   const passed = all.filter((c: any) => c.severity === "pass" || c.severity === "info" || c.passed === true).map(normalizeIssue);
 
-  const score = result.aiAnalysis?.gdprScore ?? (result.ruleChecks?.length
-    ? Math.max(0, 100 - critical.length * 25 - warnings.length * 10)
-    : null);
+  const v2Issues = isV2 ? (result.issues || []) : [];
+  const v2Critical = v2Issues.filter((i: any) => i.severity === 'critical').map((i: any) => ({ rule: i.type, message: i.title + ': ' + (i.impact || ''), fix: i.fix || '' }));
+  const v2Warnings = v2Issues.filter((i: any) => i.severity === 'warning').map((i: any) => ({ rule: i.type, message: i.title + ': ' + (i.impact || ''), fix: i.fix || '' }));
+  const v2Info = v2Issues.filter((i: any) => i.severity === 'info').map((i: any) => ({ rule: i.type, message: i.title + ': ' + (i.impact || ''), fix: i.fix || '' }));
 
-  // Track total issues for upgrade messaging
-  const totalAiIssues = result.aiAnalysis?.issues?.length || 0;
+  const score = isV2
+    ? (typeof result.score === 'number' ? result.score : null)
+    : (result.aiAnalysis?.gdprScore ?? (result.ruleChecks?.length
+        ? Math.max(0, 100 - critical.length * 25 - warnings.length * 10)
+        : null));
+
+  const totalAiIssues = isV2 ? v2Issues.length : (result.aiAnalysis?.issues?.length || 0);
   const displayedAiIssues = isLimitedPreview ? Math.min(3, totalAiIssues) : totalAiIssues;
   const hiddenAiIssues = Math.max(0, totalAiIssues - displayedAiIssues);
 
   return (
     <div className="space-y-6">
       {score !== null && <ScoreCard score={score} />}
-      {critical.length > 0 && <IssueList issues={critical} severity="critical" isLimited={isLimitedPreview} />}
-      {warnings.length > 0 && <IssueList issues={warnings} severity="warning" isLimited={isLimitedPreview} />}
-      {passed.length > 0 && <IssueList issues={passed} severity="info" isLimited={isLimitedPreview} />}
+      {!isV2 && critical.length > 0 && <IssueList issues={critical} severity="critical" isLimited={isLimitedPreview} />}
+      {!isV2 && warnings.length > 0 && <IssueList issues={warnings} severity="warning" isLimited={isLimitedPreview} />}
+      {!isV2 && passed.length > 0 && <IssueList issues={passed} severity="info" isLimited={isLimitedPreview} />}
 
-      {result.aiAnalysis && (
+      {isV2 && v2Critical.length > 0 && <IssueList issues={v2Critical} severity="critical" isLimited={isLimitedPreview} />}
+      {isV2 && v2Warnings.length > 0 && <IssueList issues={v2Warnings} severity="warning" isLimited={isLimitedPreview} />}
+      {isV2 && v2Info.length > 0 && <IssueList issues={v2Info} severity="info" isLimited={isLimitedPreview} />}
+
+      {(result.aiAnalysis || (isV2 && result.summary)) && (
         <div className="bg-midnight-light border border-white/10 rounded-xl p-6">
           <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
             <FileText className="w-4 h-4 text-accent-blue" />
@@ -110,7 +122,7 @@ function FindingsSection({ result, isLimitedPreview }: { result: any; isLimitedP
             )}
           </h3>
           <p className="text-white/60 text-sm whitespace-pre-wrap">
-            {result.aiAnalysis.summary || result.aiAnalysis.text || "No summary available."}
+            {isV2 ? (result.summary || "No summary available.") : (result.aiAnalysis.summary || result.aiAnalysis.text || "No summary available.")}
           </p>
           {isLimitedPreview && hiddenAiIssues > 0 && (
             <button
@@ -128,6 +140,7 @@ function FindingsSection({ result, isLimitedPreview }: { result: any; isLimitedP
 
 function toLimitedPreview(result: any): any {
   if (!result) return result;
+  if (result.version === 2) return result;
   const ISSUE_CAP = 5;
   const stripIssue = (issue: any) => ({
     ...issue,
@@ -152,6 +165,7 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
   const [result, setResult] = useState(initialResult ? toLimitedPreview(initialResult) : null);
   const [url, setUrl] = useState(initialUrl || "");
   const [email, setEmail] = useState(initialEmail || null);
+  const [fullAccess, setFullAccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [accountEmail, setAccountEmail] = useState(initialEmail || "");
@@ -159,6 +173,33 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
   const [accountError, setAccountError] = useState("");
   const [accountLoading, setAccountLoading] = useState(false);
   const [accountSuccess, setAccountSuccess] = useState(false);
+  const [me, setMe] = useState<{ authenticated: boolean; type?: string; credits?: number } | null>(null);
+  const [progressIdx, setProgressIdx] = useState(0);
+
+  const previewMode = !fullAccess;
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data && typeof data === 'object') setMe(data);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!(status === 'loading' || status === 'pending' || status === 'processing')) return;
+    const messages = [
+      'Analyzing cookies and consent banner…',
+      'Detecting tracking scripts…',
+      'Checking privacy policy signals…',
+      'Generating compliance findings…',
+    ];
+    const t = window.setInterval(() => {
+      setProgressIdx((i) => (i + 1) % messages.length);
+    }, 1800);
+    return () => window.clearInterval(t);
+  }, [status]);
 
   useEffect(() => {
     if (initialResult) return;
@@ -170,7 +211,7 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
     const poll = async () => {
       try {
         const res = await fetch(`/api/scan/${encodeURIComponent(scanId)}`);
-        const data = await res.json() as { status?: string; url?: string; email?: string | null; result?: any };
+        const data = await res.json() as { status?: string; url?: string; email?: string | null; result?: any; fullAccess?: boolean };
         if (cancelled) return;
 
         if (!res.ok) {
@@ -181,6 +222,7 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
         setStatus(data.status || "loading");
         setUrl(data.url || "");
         setEmail(data.email || null);
+        setFullAccess(Boolean(data.fullAccess));
         if (data.result) {
           setResult(toLimitedPreview(data.result));
           setStatus("completed");
@@ -231,6 +273,52 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
     }
   };
 
+  const handleBuyCredits = async (pack: 'credits_3' | 'credits_10') => {
+    try {
+      const res = await fetch('/api/stripe/checkout-credits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pack }),
+      });
+      const data = await res.json() as { url?: string; error?: string };
+      if (!res.ok) {
+        if (res.status === 401) {
+          setShowAccountModal(true);
+          return;
+        }
+        alert(data.error || 'Failed to start checkout.');
+        return;
+      }
+      if (data.url) window.location.href = data.url;
+    } catch {
+      alert('Failed to start checkout.');
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    try {
+      const res = await fetch(`/api/report/${encodeURIComponent(scanId)}/pdf`);
+      if (res.status === 401) {
+        setShowAccountModal(true);
+        return;
+      }
+      if (res.status === 402) {
+        alert('You need credits to download the PDF. Buy a credit pack first.');
+        return;
+      }
+      if (!res.ok) {
+        alert('Failed to generate PDF.');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    } catch {
+      alert('Failed to generate PDF.');
+    }
+  };
+
   const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setAccountError("");
@@ -271,7 +359,7 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-10">
-        {isLimitedPreview && status === "completed" && (
+        {previewMode && status === "completed" && (
           <div className="mb-6 bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 text-sm text-amber-200 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 mt-0.5 shrink-0" />
             <span>
@@ -284,7 +372,13 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
           <div className="text-center py-20">
             <div className="inline-flex items-center gap-3 text-white/60">
               <RefreshCw className="w-5 h-5 animate-spin" />
-              <span>Scan in progress — this page updates automatically...</span>
+              <span>{[
+                "Scan in progress — this page updates automatically...",
+                "Analyzing cookies and consent banner...",
+                "Detecting tracking scripts...",
+                "Checking privacy policy signals...",
+                "Generating compliance findings...",
+              ][progressIdx]}</span>
             </div>
           </div>
         )}
@@ -307,6 +401,19 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
                 {email && <p className="text-white/30 text-xs mt-1">Email: {email}</p>}
               </div>
               <div className="flex gap-3">
+                <button
+                  onClick={handleDownloadPdf}
+                  className="rounded-lg bg-white/10 px-5 py-2.5 font-semibold text-white hover:bg-white/20 transition-all text-sm flex items-center gap-2"
+                >
+                  <FileText className="w-4 h-4" />
+                  Download PDF
+                </button>
+                <Link
+                  href={`/report/${encodeURIComponent(scanId)}`}
+                  className="rounded-lg bg-white/10 px-5 py-2.5 font-semibold text-white hover:bg-white/20 transition-all text-sm"
+                >
+                  View Report
+                </Link>
                 <Link href="/#pricing" className="rounded-lg bg-accent-blue px-5 py-2.5 font-semibold text-white hover:bg-accent-glow transition-all text-sm flex items-center gap-2">
                   <Zap className="w-4 h-4" />
                   Upgrade to Agency
@@ -329,15 +436,42 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
 
             <div className="mb-8">
               <h2 className="text-xl font-semibold text-white mb-4">Key Findings</h2>
-              <FindingsSection result={result} isLimitedPreview={isLimitedPreview} />
+              <FindingsSection result={result} isLimitedPreview={previewMode} />
+              <p className="mt-4 text-white/30 text-xs">
+                Disclaimer: This tool provides automated analysis and does not constitute legal advice.
+              </p>
             </div>
 
             <div id="upgrade-prompt" className="bg-gradient-to-r from-accent-blue/20 via-midnight-light to-midnight-light border border-accent-blue/30 rounded-2xl p-8 text-center">
               <Lock className="w-8 h-8 text-accent-blue mx-auto mb-3" />
-              <h3 className="text-xl font-bold text-white mb-2">Unlock Unlimited Scans</h3>
+              <h3 className="text-xl font-bold text-white mb-2">{previewMode ? "Unlock Full Report + PDF" : "Download & Share"}</h3>
               <p className="text-white/50 text-sm mb-6 max-w-md mx-auto">
-                Get unlimited compliance scans and full report access for your entire client portfolio.
+                {previewMode
+                  ? "Use credit packs to unlock this report and download a branded PDF. Or upgrade for unlimited scans."
+                  : "Your report is unlocked. Download a PDF or run another scan any time."}
               </p>
+
+              {previewMode && (
+                <div className="flex flex-col sm:flex-row items-stretch justify-center gap-3 mb-6">
+                  <button
+                    onClick={() => handleBuyCredits('credits_3')}
+                    className="rounded-lg bg-white/10 px-6 py-3 font-semibold text-white hover:bg-white/20 transition-all text-sm"
+                  >
+                    Buy 3 reports ($29)
+                  </button>
+                  <button
+                    onClick={() => handleBuyCredits('credits_10')}
+                    className="rounded-lg bg-white/10 px-6 py-3 font-semibold text-white hover:bg-white/20 transition-all text-sm"
+                  >
+                    Buy 10 reports ($79)
+                  </button>
+                </div>
+              )}
+
+              {me?.authenticated && me.type === 'user' && (
+                <p className="text-white/30 text-xs mb-4">Credits available: {typeof me.credits === 'number' ? me.credits : 0}</p>
+              )}
+
               <button onClick={handleUpgradeToAgency} disabled={loading} className="rounded-lg bg-accent-blue px-8 py-3 font-semibold text-white hover:bg-accent-glow transition-all shadow-lg shadow-accent-blue/30 disabled:opacity-50 disabled:cursor-not-allowed">
                 {loading ? "Redirecting..." : "Start Agency Plan — $99/mo"}
               </button>
@@ -385,14 +519,5 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
 
 

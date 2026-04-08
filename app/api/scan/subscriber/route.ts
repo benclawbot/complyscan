@@ -5,6 +5,7 @@ import { crawlPage } from '@/lib/crawler';
 import { analyzeWithAI } from '@/lib/ai-analysis';
 import { runRuleBasedChecks } from '@/lib/gdpr-checks';
 import { getBearerToken, verifySubscriberToken, touchSubscriberToken } from '@/lib/auth';
+import { normalizeScanResultV2 } from '@/lib/scan-normalize';
 
 async function getSubscriberFromRequest(request: NextRequest, explicitToken?: string) {
   const env: any = getRuntimeEnv((request as any).env ?? (globalThis as any).__env ?? undefined);
@@ -86,37 +87,21 @@ export async function POST(request: NextRequest) {
     const ruleChecks = runRuleBasedChecks(crawlResult);
     const aiResult = await analyzeWithAI(crawlResult, ruleChecks);
 
-    const result = {
-      crawl: {
-        url: crawlResult.url,
-        title: crawlResult.title,
-        description: crawlResult.description,
-        h1s: crawlResult.h1s,
-        trackingScripts: crawlResult.trackingScripts,
-        formsCount: crawlResult.formsCount,
-        formInputsLabeled: crawlResult.formInputsLabeled,
-        totalFormInputs: crawlResult.totalFormInputs,
-        hasSSL: crawlResult.hasSSL,
-        statusCode: crawlResult.statusCode,
-        hasPrivacyPolicy: crawlResult.hasPrivacyPolicy,
-        hasCookiePolicyPage: crawlResult.hasCookiePolicyPage,
-        hasCookieBanner: crawlResult.hasCookieBanner,
-        cookieBannerText: crawlResult.cookieBannerText,
-        privacyPolicyUrl: crawlResult.privacyPolicyUrl,
-        thirdPartyEmbeds: crawlResult.thirdPartyEmbeds,
-      },
+    const scannedAt = new Date().toISOString();
+    const normalized = normalizeScanResultV2({
+      url,
+      crawl: crawlResult,
       ruleChecks,
       aiAnalysis: aiResult,
-      scannedAt: new Date().toISOString(),
-    };
+      scannedAt,
+    });
 
-    const resultJson = await compressGzip(JSON.stringify(result));
+    const resultJson = await compressGzip(JSON.stringify(normalized));
     await db.prepare(`UPDATE scans SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`).run(resultJson, scanId);
-    return NextResponse.json({ scanId, status: 'completed', result, message: 'Scan complete.' });
+    return NextResponse.json({ scanId, status: 'completed', result: normalized, message: 'Scan complete.' });
   } catch (error: any) {
     console.error('Subscriber scan error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-
 

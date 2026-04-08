@@ -35,7 +35,7 @@ export async function touchSubscriberToken(db: DbClient, token: string) {
 
 export async function getUserSession(db: DbClient, token: string) {
   return await db.prepare(`
-    SELECT s.token, s.user_id, u.email
+    SELECT s.token, s.user_id, u.email, u.credits
     FROM sessions s
     JOIN users u ON s.user_id = u.id
     WHERE s.token = ?

@@ -4,6 +4,7 @@ import { getDb, compressGzip, getRuntimeEnv, sendScanJob } from '@/lib/env';
 import { crawlPage } from '@/lib/crawler';
 import { analyzeWithAI } from '@/lib/ai-analysis';
 import { runRuleBasedChecks } from '@/lib/gdpr-checks';
+import { normalizeScanResultV2 } from '@/lib/scan-normalize';
 
 const FREE_SCAN_LIMIT = 3;
 
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
       process.env?.MOCK_STRIPE === '1';
 
     if (mockScan) {
-      const mockResult = {
+      const raw = {
         crawl: {
           url,
           title: 'Mock Scan Result',
@@ -75,6 +76,7 @@ export async function POST(request: NextRequest) {
         },
         ruleChecks: [
           {
+            id: 'cookie_banner_present',
             name: 'Cookie banner present',
             passed: false,
             detail: 'Cookie banner not detected.',
@@ -99,18 +101,27 @@ export async function POST(request: NextRequest) {
               fix: 'Publish a privacy policy and link it site-wide.',
             },
           ],
+          positives: [],
         },
         scannedAt: new Date().toISOString(),
       };
 
-      const resultJson = await compressGzip(JSON.stringify(mockResult));
+      const normalized = normalizeScanResultV2({
+        url,
+        crawl: raw.crawl as any,
+        ruleChecks: raw.ruleChecks as any,
+        aiAnalysis: raw.aiAnalysis as any,
+        scannedAt: raw.scannedAt,
+      });
+
+      const resultJson = await compressGzip(JSON.stringify(normalized));
       await db.prepare(
         `UPDATE scans
          SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
          WHERE id = ?`
       ).run(resultJson, scanId);
 
-      return NextResponse.json({ scanId, status: 'completed', result: mockResult });
+      return NextResponse.json({ scanId, status: 'completed', result: normalized });
     }
 
     if (env?.SCAN_QUEUE) {
@@ -136,37 +147,21 @@ export async function POST(request: NextRequest) {
     const ruleChecks = runRuleBasedChecks(crawlResult);
     const aiResult = await analyzeWithAI(crawlResult, ruleChecks);
 
-    const result = {
-      crawl: {
-        url: crawlResult.url,
-        title: crawlResult.title,
-        description: crawlResult.description,
-        h1s: crawlResult.h1s,
-        trackingScripts: crawlResult.trackingScripts,
-        formsCount: crawlResult.formsCount,
-        formInputsLabeled: crawlResult.formInputsLabeled,
-        totalFormInputs: crawlResult.totalFormInputs,
-        hasSSL: crawlResult.hasSSL,
-        statusCode: crawlResult.statusCode,
-        hasPrivacyPolicy: crawlResult.hasPrivacyPolicy,
-        hasCookiePolicyPage: crawlResult.hasCookiePolicyPage,
-        hasCookieBanner: crawlResult.hasCookieBanner,
-        cookieBannerText: crawlResult.cookieBannerText,
-        privacyPolicyUrl: crawlResult.privacyPolicyUrl,
-        thirdPartyEmbeds: crawlResult.thirdPartyEmbeds,
-      },
+    const scannedAt = new Date().toISOString();
+    const normalized = normalizeScanResultV2({
+      url,
+      crawl: crawlResult,
       ruleChecks,
       aiAnalysis: aiResult,
-      scannedAt: new Date().toISOString(),
-    };
+      scannedAt,
+    });
 
-    const resultJson = await compressGzip(JSON.stringify(result));
+    const resultJson = await compressGzip(JSON.stringify(normalized));
     await db.prepare(
       `UPDATE scans
        SET status = 'completed', result_json = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
        WHERE id = ?`
     ).run(resultJson, scanId);
 
-    return NextResponse.json({ scanId, status: 'completed', result });
+    return NextResponse.json({ scanId, status: 'completed', result: normalized });
 }
-

@@ -35,6 +35,16 @@ export async function POST(request: NextRequest) {
         const customerEmail = session.customer_email || null;
 
         if (session.mode === 'payment') {
+          // Credits purchase for logged-in users (credit packs)
+          if (session.metadata?.purchaseType === 'credits') {
+            const userId = String(session.metadata?.userId || '');
+            const credits = Number(session.metadata?.credits || 0);
+            if (userId && Number.isFinite(credits) && credits > 0) {
+              await db.prepare(`UPDATE users SET credits = credits + ? WHERE id = ?`).run(credits, userId);
+            }
+            break;
+          }
+
           const existing = await db.prepare('SELECT id FROM scans WHERE id = ?').get(scanId) as any;
           if (existing) {
             await db.prepare(`
@@ -167,4 +177,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal error', detail: err.message }, { status: 500 });
   }
 }
-

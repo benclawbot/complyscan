@@ -31,6 +31,7 @@ interface ClientScan {
 export default function DashboardClient({ sessionToken }: DashboardClientProps) {
   const [email, setEmail] = useState<string | null>(null);
   const [userType, setUserType] = useState<"user" | "subscriber" | null>(null);
+  const [credits, setCredits] = useState<number>(0);
   const [subscriptionStatus, setSubscriptionStatus] = useState<{
     plan: string;
     status: string;
@@ -46,7 +47,7 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
 
   // Agency-specific state
   const [isAgency, setIsAgency] = useState(false);
-  const [agencyTab, setAgencyTab] = useState<"clients" | "scans">("clients");
+  const [agencyTab, setAgencyTab] = useState<"clients" | "scans" | "branding">("clients");
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [clientScans, setClientScans] = useState<ClientScan[]>([]);
@@ -56,6 +57,13 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
   const [clientError, setClientError] = useState("");
   const [clientSuccess, setClientSuccess] = useState("");
   const [scanningClient, setScanningClient] = useState<string | null>(null);
+
+  const [branding, setBranding] = useState<{ agencyName: string; logoDataUrl: string }>({
+    agencyName: "",
+    logoDataUrl: "",
+  });
+  const [brandingSaving, setBrandingSaving] = useState(false);
+  const [brandingStatus, setBrandingStatus] = useState<string>("");
 
   useEffect(() => {
     if (!sessionToken) {
@@ -79,12 +87,14 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
           status: string;
           currentPeriodEnd: string;
           cancelAtPeriodEnd: boolean;
+          credits?: number;
         }>;
       })
       .then((data) => {
         if (data?.authenticated) {
           setEmail(data.email);
           setUserType(data.type as "user" | "subscriber");
+          setCredits(typeof data.credits === 'number' ? data.credits : 0);
           setAuthenticated(true);
           if (data.type === "subscriber") {
             setSubscriptionStatus({
@@ -96,6 +106,7 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
             setIsAgency(data.plan === "agency");
             if (data.plan === "agency") {
               loadClients();
+              loadBranding();
             } else {
               loadScans(data.type as "user" | "subscriber");
             }
@@ -114,6 +125,22 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
       .then((res) => res.json() as Promise<{ clients: Client[] }>)
       .then((data) => {
         if (data.clients) setClients(data.clients);
+      })
+      .catch(() => {});
+  };
+
+  const loadBranding = () => {
+    fetch("/api/branding", {
+      headers: { Authorization: `Bearer ${sessionToken}` },
+    })
+      .then((res) => res.ok ? (res.json() as Promise<{ branding?: any }>) : null)
+      .then((data) => {
+        const b = data?.branding;
+        if (!b) return;
+        setBranding({
+          agencyName: b.agencyName || "",
+          logoDataUrl: b.logoDataUrl || "",
+        });
       })
       .catch(() => {});
   };
@@ -284,6 +311,65 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
     window.location.href = "/";
   };
 
+  const handleBuyCredits = async (pack: 'credits_3' | 'credits_10') => {
+    try {
+      const res = await fetch('/api/stripe/checkout-credits', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${sessionToken}`,
+        },
+        body: JSON.stringify({ pack }),
+      });
+      const data = await res.json() as { url?: string; error?: string };
+      if (!res.ok) {
+        alert(data.error || 'Checkout failed.');
+        return;
+      }
+      if (data.url) window.location.href = data.url;
+    } catch {
+      alert('Checkout failed.');
+    }
+  };
+
+  const handleBrandingLogoFile = async (file: File | null) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = typeof reader.result === 'string' ? reader.result : '';
+      setBranding((b) => ({ ...b, logoDataUrl: value }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveBranding = async () => {
+    setBrandingStatus('');
+    setBrandingSaving(true);
+    try {
+      const res = await fetch('/api/branding', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${sessionToken}`,
+        },
+        body: JSON.stringify({
+          agencyName: branding.agencyName,
+          logoDataUrl: branding.logoDataUrl,
+        }),
+      });
+      const data = await res.json().catch(() => ({})) as any;
+      if (!res.ok) {
+        setBrandingStatus(data.error || 'Failed to save branding.');
+        return;
+      }
+      setBrandingStatus('Saved.');
+    } catch {
+      setBrandingStatus('Failed to save branding.');
+    } finally {
+      setBrandingSaving(false);
+    }
+  };
+
   if (!authenticated) {
     return (
       <div className="min-h-screen bg-midnight flex items-center justify-center px-4">
@@ -353,7 +439,61 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
             >
               All Scans
             </button>
+            <button
+              onClick={() => setAgencyTab("branding")}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                agencyTab === "branding"
+                  ? "bg-accent-blue text-white"
+                  : "text-white/60 hover:text-white"
+              }`}
+            >
+              Branding
+            </button>
           </div>
+
+          {agencyTab === "branding" && (
+            <div className="bg-midnight-light border border-white/10 rounded-2xl p-6 mb-8">
+              <h2 className="text-lg font-semibold text-white mb-2">White-label Branding</h2>
+              <p className="text-white/50 text-sm mb-6">Your logo and agency name will appear on PDFs exported for your clients.</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-white/50 text-xs mb-1 uppercase tracking-wider">Agency name</label>
+                  <input
+                    value={branding.agencyName}
+                    onChange={(e) => setBranding((b) => ({ ...b, agencyName: e.target.value }))}
+                    className="w-full rounded-lg bg-midnight border border-white/20 px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-accent-blue transition-all"
+                    placeholder="Your agency name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-white/50 text-xs mb-1 uppercase tracking-wider">Logo upload</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleBrandingLogoFile(e.target.files?.[0] || null)}
+                    className="w-full text-white/70 text-sm"
+                  />
+                  {branding.logoDataUrl && (
+                    <div className="mt-3 bg-midnight border border-white/10 rounded-lg p-3 flex items-center justify-center">
+                      <img src={branding.logoDataUrl} alt="Logo preview" style={{ maxHeight: 64, maxWidth: 220 }} />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-6 flex items-center gap-3">
+                <button
+                  onClick={handleSaveBranding}
+                  disabled={brandingSaving}
+                  className="rounded-lg bg-accent-blue px-6 py-3 font-semibold text-white hover:bg-accent-glow transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {brandingSaving ? "Saving..." : "Save Branding"}
+                </button>
+                {brandingStatus && <span className="text-white/50 text-sm">{brandingStatus}</span>}
+              </div>
+            </div>
+          )}
 
           {/* Add Client Form */}
           {agencyTab === "clients" && (
@@ -623,6 +763,29 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
                   Cancelling
                 </span>
               )}
+            </div>
+          </div>
+        )}
+
+        {userType === "user" && (
+          <div className="bg-midnight-light border border-white/10 rounded-2xl p-6 mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-white mb-1">Report Credits</h2>
+                <p className="text-white/50 text-sm">Credits are used to unlock full reports and PDF downloads.</p>
+              </div>
+              <div className="text-right">
+                <p className="text-white/60 text-sm">Available</p>
+                <p className="text-3xl font-bold text-white">{credits}</p>
+              </div>
+            </div>
+            <div className="mt-5 flex flex-col sm:flex-row gap-3">
+              <button onClick={() => handleBuyCredits('credits_3')} className="rounded-lg bg-white/10 px-6 py-3 font-semibold text-white hover:bg-white/20 transition-all text-sm">
+                Buy 3 reports ($29)
+              </button>
+              <button onClick={() => handleBuyCredits('credits_10')} className="rounded-lg bg-white/10 px-6 py-3 font-semibold text-white hover:bg-white/20 transition-all text-sm">
+                Buy 10 reports ($79)
+              </button>
             </div>
           </div>
         )}

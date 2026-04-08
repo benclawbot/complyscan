@@ -78,6 +78,117 @@ interface AiAnalysisResult {
   gdprScore: number;
 }
 
+type NormalizedIssueSeverity = 'critical' | 'warning' | 'info';
+
+type NormalizedIssue = {
+  type: string;
+  severity: NormalizedIssueSeverity;
+  title: string;
+  impact: string;
+  fix: string;
+  evidence: Record<string, unknown>;
+  gdprArticle?: string;
+};
+
+type NormalizedScanResultV2 = {
+  version: 2;
+  url: string;
+  scannedAt: string;
+  score: number;
+  risk: 'low' | 'medium' | 'high' | 'critical';
+  summary: string;
+  positives: string[];
+  issues: NormalizedIssue[];
+  signals: {
+    hasSSL: boolean;
+    statusCode: number;
+    hasPrivacyPolicy: boolean;
+    privacyPolicyUrl: string | null;
+    hasCookieBanner: boolean;
+    cookieBannerText: string | null;
+    trackingScripts: string[];
+    thirdPartyEmbeds: string[];
+    hasCookiePolicyPage: boolean;
+    formsCount: number;
+    totalFormInputs: number;
+    formInputsLabeled: number;
+    mixedContent?: boolean;
+  };
+  raw: {
+    crawl: CrawlResult;
+    ruleChecks: GdprCheck[];
+    aiAnalysis: AiAnalysisResult;
+  };
+};
+
+function normalizeRiskLevel(risk: unknown): NormalizedScanResultV2['risk'] {
+  const r = String(risk || '').toLowerCase().trim();
+  if (r === 'critical') return 'critical';
+  if (r === 'high') return 'high';
+  if (r === 'medium') return 'medium';
+  if (r === 'low') return 'low';
+  return 'medium';
+}
+
+function clampScore(score: unknown): number {
+  const n = typeof score === 'number' ? score : Number(score);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function normalizeForStorage(url: string, crawl: CrawlResult, ruleChecks: GdprCheck[], aiAnalysis: AiAnalysisResult, scannedAt: string): NormalizedScanResultV2 {
+  const issues: NormalizedIssue[] = [];
+  for (const rc of ruleChecks || []) {
+    if (rc.passed) continue;
+    issues.push({
+      type: String(rc.id || 'rule_check'),
+      severity: rc.severity || 'warning',
+      title: String(rc.name || 'Failed check'),
+      impact: String(rc.detail || ''),
+      fix: String(rc.recommendation || ''),
+      evidence: { url: crawl.url, cookieBannerText: crawl.cookieBannerText, trackingScripts: crawl.trackingScripts },
+      gdprArticle: (rc as any).gdprArticle ? String((rc as any).gdprArticle) : undefined,
+    });
+  }
+  for (const aiIssue of aiAnalysis?.issues || []) {
+    issues.push({
+      type: 'ai_finding',
+      severity: aiIssue.severity,
+      title: String(aiIssue.title || 'AI finding'),
+      impact: String((aiIssue as any).impact || aiIssue.description || ''),
+      fix: String(aiIssue.fix || ''),
+      evidence: {},
+    });
+  }
+
+  return {
+    version: 2,
+    url,
+    scannedAt,
+    score: clampScore(aiAnalysis?.gdprScore),
+    risk: normalizeRiskLevel(aiAnalysis?.riskLevel),
+    summary: String(aiAnalysis?.summary || ''),
+    positives: Array.isArray(aiAnalysis?.positives) ? aiAnalysis.positives.map(String) : [],
+    issues,
+    signals: {
+      hasSSL: Boolean(crawl.hasSSL),
+      statusCode: Number(crawl.statusCode || 0),
+      hasPrivacyPolicy: Boolean(crawl.hasPrivacyPolicy),
+      privacyPolicyUrl: crawl.privacyPolicyUrl ?? null,
+      hasCookieBanner: Boolean(crawl.hasCookieBanner),
+      cookieBannerText: crawl.cookieBannerText ?? null,
+      trackingScripts: Array.isArray(crawl.trackingScripts) ? crawl.trackingScripts : [],
+      thirdPartyEmbeds: Array.isArray(crawl.thirdPartyEmbeds) ? crawl.thirdPartyEmbeds : [],
+      hasCookiePolicyPage: Boolean(crawl.hasCookiePolicyPage),
+      formsCount: Number(crawl.formsCount || 0),
+      totalFormInputs: Number(crawl.totalFormInputs || 0),
+      formInputsLabeled: Number(crawl.formInputsLabeled || 0),
+      mixedContent: (crawl as any).mixedContent,
+    },
+    raw: { crawl, ruleChecks, aiAnalysis },
+  };
+}
+
 export default {
   async queue(batch: MessageBatch<ScanJob>, env: Env): Promise<void> {
     await Promise.allSettled(
@@ -128,29 +239,8 @@ async function processScanJob(job: ScanJob, env: Env): Promise<void> {
     const ruleChecks = runRuleBasedChecks(crawlResult);
     const aiResult = await analyzeWithWorkersAI(crawlResult, ruleChecks, env.AI);
 
-    const result = {
-      crawl: {
-        url: crawlResult.url,
-        title: crawlResult.title,
-        description: crawlResult.description,
-        h1s: crawlResult.h1s,
-        trackingScripts: crawlResult.trackingScripts,
-        formsCount: crawlResult.formsCount,
-        hasSSL: crawlResult.hasSSL,
-        statusCode: crawlResult.statusCode,
-        hasPrivacyPolicy: crawlResult.hasPrivacyPolicy,
-        hasCookiePolicyPage: crawlResult.hasCookiePolicyPage,
-        hasCookieBanner: crawlResult.hasCookieBanner,
-        cookieBannerText: crawlResult.cookieBannerText,
-        privacyPolicyUrl: crawlResult.privacyPolicyUrl,
-        formInputsLabeled: crawlResult.formInputsLabeled,
-        totalFormInputs: crawlResult.totalFormInputs,
-        thirdPartyEmbeds: crawlResult.thirdPartyEmbeds,
-      },
-      ruleChecks,
-      aiAnalysis: aiResult,
-      scannedAt: new Date().toISOString(),
-    };
+    const scannedAt = new Date().toISOString();
+    const result = normalizeForStorage(url, crawlResult, ruleChecks, aiResult, scannedAt);
 
     const resultJson = await compressGzipBase64(JSON.stringify(result));
     await env.DB.prepare(`
@@ -524,4 +614,3 @@ async function sendReportEmail(env: Env, email: string, url: string, result: any
     console.error('[Worker] Failed to send report email:', err);
   }
 }
-
