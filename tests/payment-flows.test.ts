@@ -45,7 +45,7 @@ describe('POST /api/stripe/checkout', () => {
       mode: 'subscription',
       line_items: [{ price: 'price_test_monthly', quantity: 1 }],
       customer_email: email,
-      success_url: `${appUrl}/success/{CHECKOUT_SESSION_ID}?scan_id=${scanId}&plan=monthly&url=${encodeURIComponent(url)}&email=${encodeURIComponent(email)}`,
+      success_url: `${appUrl}/success?session_id={CHECKOUT_SESSION_ID}&scan_id=${scanId}&plan=monthly&url=${encodeURIComponent(url)}&email=${encodeURIComponent(email)}`,
       cancel_url: `${appUrl}/?cancelled=true`,
       metadata: { scanId, url, plan: 'monthly' },
     };

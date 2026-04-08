@@ -67,7 +67,8 @@ export async function POST(request: NextRequest) {
     params.append('line_items[0][quantity]', '1');
     if (email) params.append('customer_email', email);
 
-    const successUrl = new URL(`${appUrl}/success/{CHECKOUT_SESSION_ID}`);
+    const successUrl = new URL(`${appUrl}/success`);
+    successUrl.searchParams.set('session_id', '{CHECKOUT_SESSION_ID}');
     successUrl.searchParams.set('scan_id', scanId);
     successUrl.searchParams.set('plan', 'monthly');
     if (websiteUrl) successUrl.searchParams.set('url', websiteUrl);
