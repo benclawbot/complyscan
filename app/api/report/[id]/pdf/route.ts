@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, getRuntimeEnv, parseResultJson } from '@/lib/env';
 import { generatePDF } from '@/lib/report-pdf';
+import { generateReportHtml } from '@/lib/report';
 import { buildMockScanResult } from '@/lib/mock-scan';
 import { getBearerToken, getSubscriberTokenRecord, getUserSession, touchSubscriberToken, touchUserSession } from '@/lib/auth';
 import { getBranding } from '@/lib/branding';
@@ -19,6 +20,17 @@ function pdfResponse(pdf: Buffer, fileBase: string) {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `inline; filename="${fileBase}.pdf"`,
       'Cache-Control': 'no-store',
+    },
+  });
+}
+
+function htmlFallbackResponse(html: string, fileBase: string) {
+  return new NextResponse(html, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Content-Disposition': `inline; filename="${fileBase}.html"`,
+      'Cache-Control': 'no-store',
+      'X-ComplyScan-PDF-Fallback': '1',
     },
   });
 }
@@ -94,12 +106,19 @@ export async function GET(
   }
 
   const fileBase = `gdpr-report-${scanId}`;
-  const pdf = await generatePDF({
-    url: scan.url || '',
-    result: result as any,
-    fullReport: true,
-    branding: branding ?? undefined,
-    env,
-  });
-  return pdfResponse(pdf, fileBase);
+
+  try {
+    const pdf = await generatePDF({
+      url: scan.url || '',
+      result: result as any,
+      fullReport: true,
+      branding: branding ?? undefined,
+      env,
+    });
+    return pdfResponse(pdf, fileBase);
+  } catch (error: any) {
+    console.error('PDF generation failed, serving printable HTML fallback:', error?.message || error);
+    const html = generateReportHtml(scan.url || '', result as any, true, branding ?? undefined);
+    return htmlFallbackResponse(html, fileBase);
+  }
 }
