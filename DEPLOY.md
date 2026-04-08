@@ -121,7 +121,7 @@ STRIPE_WEBHOOK_SECRET=***
 Then on Stripe dashboard:
 - Developers → Webhooks → Add endpoint
 - URL: `https://your-project.pages.dev/api/stripe/webhook`
-- Events: `checkout.session.completed`, `customer.subscription.deleted`
+- Events: `checkout.session.completed`, `customer.subscription.updated`, `invoice.payment_succeeded`, `customer.subscription.deleted`
 - Copy the webhook signing secret to Cloudflare Pages
 
 ---

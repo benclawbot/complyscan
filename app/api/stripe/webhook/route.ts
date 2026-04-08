@@ -35,28 +35,40 @@ export async function POST(request: NextRequest) {
         const customerEmail = session.customer_email || null;
 
         if (session.mode === 'payment') {
-          // Credits purchase for logged-in users (credit packs)
-          if (session.metadata?.purchaseType === 'credits') {
+          const purchaseType = String(session.metadata?.purchaseType || '');
+
+          if (purchaseType === 'credits') {
             const userId = String(session.metadata?.userId || '');
             const credits = Number(session.metadata?.credits || 0);
-            if (userId && Number.isFinite(credits) && credits > 0) {
-              await db.prepare(`UPDATE users SET credits = credits + ? WHERE id = ?`).run(credits, userId);
-            }
-            break;
-          }
+            const markerScanId = `credits:${session.id}`;
 
-          const existing = await db.prepare('SELECT id FROM scans WHERE id = ?').get(scanId) as any;
-          if (existing) {
-            await db.prepare(`
-              UPDATE scans
-              SET stripe_session_id = ?, email = COALESCE(?, email)
-              WHERE id = ?
-            `).run(session.id, customerEmail, scanId);
+            if (userId && Number.isFinite(credits) && credits > 0) {
+              const alreadyApplied = await db.prepare('SELECT id FROM report_purchases WHERE scan_id = ?').get(markerScanId) as any;
+              if (!alreadyApplied) {
+                const user = await db.prepare('SELECT id FROM users WHERE id = ?').get(userId) as any;
+                if (user) {
+                  await db.prepare('UPDATE users SET credits = credits + ? WHERE id = ?').run(credits, userId);
+                  await db.prepare(`
+                    INSERT INTO report_purchases (id, scan_id, user_id, stripe_payment_intent, purchased_at)
+                    VALUES (?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+                  `).run(`purchase_${session.id}`, markerScanId, userId, session.payment_intent || null);
+                }
+              }
+            }
           } else {
-            await db.prepare(`
-              INSERT INTO scans (id, url, status, email, stripe_session_id, created_at)
-              VALUES (?, ?, 'pending', ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-            `).run(scanId, websiteUrl, customerEmail, session.id);
+            const existing = await db.prepare('SELECT id FROM scans WHERE id = ?').get(scanId) as any;
+            if (existing) {
+              await db.prepare(`
+                UPDATE scans
+                SET stripe_session_id = ?, email = COALESCE(?, email)
+                WHERE id = ?
+              `).run(session.id, customerEmail, scanId);
+            } else {
+              await db.prepare(`
+                INSERT INTO scans (id, url, status, email, stripe_session_id, created_at)
+                VALUES (?, ?, 'pending', ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+              `).run(scanId, websiteUrl, customerEmail, session.id);
+            }
           }
         } else if (session.mode === 'subscription') {
           const customerId = String(session.customer || '');
@@ -96,6 +108,7 @@ export async function POST(request: NextRequest) {
             VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
           `).run(token, subscriberId);
         }
+
         break;
       }
 
