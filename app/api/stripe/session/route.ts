@@ -91,6 +91,37 @@ export async function GET(request: NextRequest) {
           result.customerEmail = subscriber.email || result.customerEmail;
         }
       }
+    } else if (session.mode === 'payment' && String(session.metadata?.purchaseType || '') === 'credits') {
+      const userId = String(session.metadata?.userId || '').trim();
+      const credits = Number(session.metadata?.credits || 0);
+      const paymentComplete = String(session.status || '') === 'complete' || String(session.payment_status || '') === 'paid';
+      const markerScanId = `credits:${session.id}`;
+
+      result.purchaseType = 'credits';
+      result.creditsRequested = Number.isFinite(credits) ? credits : 0;
+
+      if (paymentComplete && userId && Number.isFinite(credits) && credits > 0) {
+        const alreadyApplied = await db.prepare('SELECT id FROM report_purchases WHERE scan_id = ?').get(markerScanId) as any;
+        if (!alreadyApplied) {
+          const user = await db.prepare('SELECT id FROM users WHERE id = ?').get(userId) as any;
+          if (user) {
+            await db.prepare('UPDATE users SET credits = credits + ? WHERE id = ?').run(credits, userId);
+            await db.prepare(`
+              INSERT INTO report_purchases (id, scan_id, user_id, stripe_payment_intent, purchased_at)
+              VALUES (?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+            `).run(`purchase_${session.id}`, markerScanId, userId, session.payment_intent || null);
+            result.creditsApplied = credits;
+          } else {
+            result.creditsApplied = 0;
+            result.error = 'User not found for credit purchase';
+          }
+        } else {
+          result.creditsApplied = 0;
+        }
+
+        const updatedUser = await db.prepare('SELECT credits FROM users WHERE id = ?').get(userId) as any;
+        result.currentCredits = Number(updatedUser?.credits || 0);
+      }
     }
 
     return NextResponse.json(result);

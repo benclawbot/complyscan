@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 interface DashboardClientProps {
   sessionToken: string;
@@ -29,6 +30,9 @@ interface ClientScan {
 }
 
 export default function DashboardClient({ sessionToken }: DashboardClientProps) {
+  const searchParams = useSearchParams();
+  const checkoutSessionId = searchParams.get('session_id');
+
   const [email, setEmail] = useState<string | null>(null);
   const [userType, setUserType] = useState<"user" | "subscriber" | null>(null);
   const [credits, setCredits] = useState<number>(0);
@@ -117,6 +121,25 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
       })
       .catch(() => setError("Failed to load dashboard."));
   }, [sessionToken]);
+
+  useEffect(() => {
+    if (!sessionToken || !checkoutSessionId) return;
+
+    fetch(`/api/stripe/session?session_id=${encodeURIComponent(checkoutSessionId)}`)
+      .then((res) => (res.ok ? (res.json() as Promise<{ purchaseType?: string; currentCredits?: number }>) : null))
+      .then((data) => {
+        if (data?.purchaseType === 'credits' && typeof data.currentCredits === 'number') {
+          setCredits(data.currentCredits);
+        }
+      })
+      .finally(() => {
+        const next = new URL(window.location.href);
+        next.searchParams.delete('session_id');
+        next.searchParams.delete('credits_added');
+        window.history.replaceState({}, '', `${next.pathname}${next.search}`);
+      })
+      .catch(() => {});
+  }, [sessionToken, checkoutSessionId]);
 
   const loadClients = () => {
     fetch("/api/clients", {

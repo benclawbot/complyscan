@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     params.append('mode', 'payment');
     params.append('line_items[0][price]', priceId);
     params.append('line_items[0][quantity]', '1');
-    params.append('success_url', `${appUrl}/dashboard?token=${encodeURIComponent(token)}&credits_added=${credits}`);
+    params.append('success_url', `${appUrl}/dashboard?token=${encodeURIComponent(token)}&session_id={CHECKOUT_SESSION_ID}&credits_added=${credits}`);
     params.append('cancel_url', `${appUrl}/dashboard?token=${encodeURIComponent(token)}&cancelled=true`);
     params.append('customer_email', session.email);
     params.append('metadata[purchaseType]', 'credits');
