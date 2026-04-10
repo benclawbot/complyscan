@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/env';
+import { getDb, getRuntimeEnv } from '@/lib/env';
 
 export async function POST(request: NextRequest, { params: _params }: { params: Promise<{ id: string }> }, env: any) {
   try {
@@ -10,7 +10,8 @@ export async function POST(request: NextRequest, { params: _params }: { params: 
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
     }
 
-    const db = getDb(env);
+    const runtimeEnv: any = getRuntimeEnv((request as any).env ?? env ?? (globalThis as any).__env ?? undefined);
+    const db = getDb(runtimeEnv);
 
     // Find active subscriber by email
     const subscriber = await db.prepare(`
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest, { params: _params }: { params: 
       return NextResponse.json({ notFound: true }, { status: 200 });
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://complyscan.pages.dev';
+    const appUrl = runtimeEnv?.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://complyscan.pages.dev';
     const dashboardUrl = `${appUrl}/dashboard?token=${tokenRecord.token}`;
 
     return NextResponse.json({ dashboardUrl });
@@ -41,5 +42,8 @@ export async function POST(request: NextRequest, { params: _params }: { params: 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+
+
 
 

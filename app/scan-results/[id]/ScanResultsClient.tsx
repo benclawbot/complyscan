@@ -474,7 +474,7 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
               <button onClick={handleUpgradeToAgency} disabled={loading} className="rounded-lg bg-accent-blue px-8 py-3 font-semibold text-white hover:bg-accent-glow transition-all shadow-lg shadow-accent-blue/30 disabled:opacity-50 disabled:cursor-not-allowed">
                 {loading ? "Redirecting..." : "Start Agency Plan — $99/mo"}
               </button>
-              <p className="text-white/30 text-xs mt-3">Secure payment via Stripe · Cancel anytime</p>
+              <p className="text-white/30 text-xs mt-3">Secure payment via Stripe · Cancel anytime (effective at period end)</p>
             </div>
           </>
         )}
@@ -518,5 +518,6 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
     </div>
   );
 }
+
 
 

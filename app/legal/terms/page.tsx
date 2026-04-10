@@ -85,10 +85,11 @@ export default function TermsPage() {
             >
               3. Pricing and Payment
             </h2>
-            <p>ComplyScan offers two payment options:</p>
+            <p>ComplyScan offers the following payment options:</p>
             <ul>
-              <li><strong>Single Scan:</strong> $29 USD per scan. One URL, one report.</li>
-              <li><strong>Monthly Monitor:</strong> $99 USD per month. Unlimited scans for one domain, monthly rescan reminders, and scan history.</li>
+              <li><strong>Report Pack (3 credits):</strong> $29 USD, one-time payment.</li>
+              <li><strong>Report Pack (10 credits):</strong> $79 USD, one-time payment.</li>
+              <li><strong>Agency Subscription:</strong> $99 USD per month for agency dashboard access, client management, and unlimited subscriber scans while active.</li>
             </ul>
             <p>
               Payments are processed securely via Stripe. All prices are listed in USD and
@@ -96,9 +97,9 @@ export default function TermsPage() {
               applicable to your jurisdiction.
             </p>
             <p>
-              Subscription payments are billed monthly on the same date of initial signup.
-              You may cancel your subscription at any time; cancellation takes effect at
-              the end of the current billing period.
+              Agency subscription payments are billed monthly on the same date of initial signup.
+              You may request cancellation at any time from the billing portal; cancellation
+              is scheduled for period end, and access continues until the end of the current billing period.
             </p>
           </section>
 
@@ -250,3 +251,5 @@ export default function TermsPage() {
     </main>
   );
 }
+
+

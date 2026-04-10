@@ -825,13 +825,15 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
                     ? "Subscription active"
                     : subscriptionStatus.status}
                 </p>
-                {periodEnd && (
-                  <p className="text-white/50 text-xs mt-1">
-                    {isCancelling
-                      ? `Access until ${periodEnd} — your subscription will not renew.`
-                      : `Next billing date: ${periodEnd}`}
-                  </p>
-                )}
+                <p className="text-white/50 text-xs mt-1">
+                  {periodEnd
+                    ? (isCancelling
+                        ? `Access until ${periodEnd} — cancellation is scheduled at period end.`
+                        : `Renews on ${periodEnd}.`)
+                    : (isCancelling
+                        ? 'Cancellation is scheduled. Renewal date is being synced from Stripe.'
+                        : 'Subscription active. Renewal date is being synced from Stripe.')}
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -940,5 +942,6 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
     </div>
   );
 }
+
 
 
