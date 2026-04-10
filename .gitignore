@@ -1,0 +1,37 @@
+# Workspace-wide security + hygiene ignores
+
+# Secrets / credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*secret*.json
+*token*.json
+google_client_secret.json
+google_tokens.json
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+
+# Runtime/state artifacts
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.log
+*.log.*
+.coverage
+htmlcov/
+
+# Local model/cache artifacts
+*.pkl
+
+# Path-polluted filenames (from accidental Windows path copies)
+*\\*
+*:*
