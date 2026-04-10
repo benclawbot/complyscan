@@ -29,6 +29,13 @@ venv/
 .coverage
 htmlcov/
 
+# Local sync/cache noise
+.dropbox
+.dropbox.cache/
+
+# Keep child projects isolated in their own repos
+Projects/
+
 # Local model/cache artifacts
 *.pkl
 
