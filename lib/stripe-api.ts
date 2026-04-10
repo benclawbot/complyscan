@@ -36,6 +36,10 @@ export async function retrieveSubscription(subscriptionId: string, stripeKey?: s
   return stripeRequest(`/subscriptions/${encodeURIComponent(subscriptionId)}`, stripeKey);
 }
 
+export async function retrieveCustomer(customerId: string, stripeKey?: string): Promise<any> {
+  return stripeRequest(`/customers/${encodeURIComponent(customerId)}`, stripeKey);
+}
+
 export function verifyStripeWebhookSignature(payload: string, signatureHeader: string, webhookSecret: string): boolean {
   const parts = Object.fromEntries(
     signatureHeader.split(',').map((part) => {
@@ -57,3 +61,4 @@ export function verifyStripeWebhookSignature(payload: string, signatureHeader: s
     return false;
   }
 }
+

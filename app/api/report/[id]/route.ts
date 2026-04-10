@@ -4,7 +4,7 @@ import { generateReportHtml } from '@/lib/report';
 import { retrieveCheckoutSession } from '@/lib/stripe-api';
 import { getBearerToken, getSubscriberTokenRecord, getUserSession, touchSubscriberToken, touchUserSession } from '@/lib/auth';
 import { getBranding } from '@/lib/branding';
-import { hasUnlockedReport } from '@/lib/report-access';
+import { hasUnlockedReport, unlockReportWithCredit } from '@/lib/report-access';
 
 function jsonNoStore(data: any, init?: ResponseInit) {
   return NextResponse.json(data, {
@@ -54,7 +54,19 @@ export async function GET(
           const authorized = !scan.user_id || scan.user_id === user.user_id || scan.email === user.email;
           if (!authorized) return jsonNoStore({ error: 'Forbidden' }, { status: 403 });
           branding = await getBranding(db, { type: 'user', id: user.user_id });
-          full = scan.subscriber_id ? true : await hasUnlockedReport(db, scanId);
+          if (scan.subscriber_id) {
+            full = true;
+          } else {
+            const unlocked = await hasUnlockedReport(db, scanId);
+            if (unlocked) {
+              full = true;
+            } else {
+              const credits = Number(user.credits ?? 0);
+              if (credits > 0) {
+                full = await unlockReportWithCredit(db, user.user_id, scanId);
+              }
+            }
+          }
         }
       }
     }
@@ -101,3 +113,5 @@ export async function GET(
 
   return jsonNoStore({ error: 'Scan not yet complete' }, { status: 202 });
 }
+
+

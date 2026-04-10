@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import { getDb, getRuntimeEnv, getStripeSecrets } from '@/lib/env';
-import { retrieveCheckoutSession } from '@/lib/stripe-api';
+import { retrieveCheckoutSession, retrieveCustomer } from '@/lib/stripe-api';
 
 export async function GET(request: NextRequest) {
   const sessionId = request.nextUrl.searchParams.get('session_id');
@@ -46,30 +46,49 @@ export async function GET(request: NextRequest) {
     };
 
     if (session.mode === 'subscription') {
-      const stripeCustomerId = String(session.customer || '');
-      const sessionCustomerEmail = String(session.customer_email || '').trim();
+      const stripeCustomerId = String(session.customer || '').trim();
+      let sessionCustomerEmail = String(session.customer_email || session.customer_details?.email || '').trim();
       const subscriptionIsComplete = String(session.status || '') === 'complete';
+
+      if (!sessionCustomerEmail && stripeCustomerId) {
+        try {
+          const customer = await retrieveCustomer(stripeCustomerId, stripeSecrets.STRIPE_SECRET_KEY);
+          sessionCustomerEmail = String(customer?.email || '').trim();
+        } catch {
+          // ignore customer fetch failures
+        }
+      }
 
       if (stripeCustomerId) {
         let subscriber = await db.prepare('SELECT id, email FROM subscribers WHERE stripe_customer_id = ?').get(stripeCustomerId) as any;
 
         // Self-heal path: if webhook is delayed/missed, bootstrap subscriber + token from a completed checkout session.
         if (!subscriber && subscriptionIsComplete && sessionCustomerEmail) {
-          const subscriberId = uuidv4();
-          await db.prepare(`
-            INSERT INTO subscribers (id, stripe_customer_id, email, plan, status, current_period_end, cancel_at_period_end, updated_at)
-            VALUES (?, ?, ?, 'agency', 'active', NULL, 0, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-          `).run(subscriberId, stripeCustomerId, sessionCustomerEmail);
+          const existingByEmail = await db.prepare('SELECT id, email FROM subscribers WHERE email = ? ORDER BY updated_at DESC LIMIT 1').get(sessionCustomerEmail) as any;
 
-          const token = crypto.randomBytes(24).toString('hex');
-          await db.prepare(`
-            INSERT INTO subscriber_tokens (token, subscriber_id, created_at, last_used_at)
-            VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-          `).run(token, subscriberId);
+          if (existingByEmail?.id) {
+            await db.prepare(`
+              UPDATE subscribers
+              SET stripe_customer_id = ?, plan = 'agency', status = 'active', updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+              WHERE id = ?
+            `).run(stripeCustomerId, existingByEmail.id);
+            subscriber = { id: existingByEmail.id, email: existingByEmail.email || sessionCustomerEmail };
+          } else {
+            const subscriberId = uuidv4();
+            await db.prepare(`
+              INSERT INTO subscribers (id, stripe_customer_id, email, plan, status, current_period_end, cancel_at_period_end, updated_at)
+              VALUES (?, ?, ?, 'agency', 'active', NULL, 0, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+            `).run(subscriberId, stripeCustomerId, sessionCustomerEmail);
+            subscriber = { id: subscriberId, email: sessionCustomerEmail };
+          }
+        }
 
-          subscriber = { id: subscriberId, email: sessionCustomerEmail };
-          result.subscriberToken = token;
-          result.customerEmail = sessionCustomerEmail;
+        if (subscriber && subscriptionIsComplete) {
+          await db.prepare(`
+            UPDATE subscribers
+            SET plan = 'agency', status = 'active', updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+            WHERE id = ?
+          `).run(subscriber.id);
         }
 
         if (subscriber && !result.subscriberToken) {
@@ -88,7 +107,7 @@ export async function GET(request: NextRequest) {
             result.subscriberToken = token;
           }
 
-          result.customerEmail = subscriber.email || result.customerEmail;
+          result.customerEmail = subscriber.email || sessionCustomerEmail || result.customerEmail;
         }
       }
     } else if (session.mode === 'payment' && String(session.metadata?.purchaseType || '') === 'credits') {
@@ -130,6 +149,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+
+
 
 
 

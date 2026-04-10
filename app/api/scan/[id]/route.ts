@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, parseResultJson } from '@/lib/env';
 import { getBearerToken, getSubscriberTokenRecord, getUserSession, touchSubscriberToken, touchUserSession } from '@/lib/auth';
-import { hasUnlockedReport } from '@/lib/report-access';
+import { hasUnlockedReport, unlockReportWithCredit } from '@/lib/report-access';
 import { isNormalizedScanResultV2, normalizeScanResultV2 } from '@/lib/scan-normalize';
 
 function jsonNoStore(data: any, init?: ResponseInit) {
@@ -57,7 +57,19 @@ export async function GET(
         await touchUserSession(db, token);
         const authorized = !scan.user_id || scan.user_id === user.user_id || scan.email === user.email;
         if (authorized) {
-          fullAccess = scan.subscriber_id ? true : await hasUnlockedReport(db, id);
+          if (scan.subscriber_id) {
+            fullAccess = true;
+          } else {
+            const unlocked = await hasUnlockedReport(db, id);
+            if (unlocked) {
+              fullAccess = true;
+            } else {
+              const credits = Number(user.credits ?? 0);
+              if (credits > 0) {
+                fullAccess = await unlockReportWithCredit(db, user.user_id, id);
+              }
+            }
+          }
         }
       }
     }
@@ -91,3 +103,5 @@ export async function GET(
     completed_at: scan.completed_at,
   });
 }
+
+

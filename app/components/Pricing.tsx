@@ -1,7 +1,7 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RevealSection } from "./ui/RevealSection";
 import { SampleReportPreview } from "./ui/SampleReportPreview";
 
@@ -50,6 +50,16 @@ const plans = [
 
 export function Pricing() {
   const [loading, setLoading] = useState<string | null>(null);
+  const [authType, setAuthType] = useState<"user" | "subscriber" | null>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then((r) => (r.ok ? (r.json() as Promise<{ authenticated: boolean; type?: 'user' | 'subscriber' }>) : null))
+      .then((data) => {
+        if (data?.authenticated) setAuthType((data.type as 'user' | 'subscriber') || null);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleCheckout = async (plan: "monthly") => {
     setLoading(plan);
@@ -70,6 +80,31 @@ export function Pricing() {
       }
     } catch {
       alert("Failed to start checkout. Please try again.");
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleBuyCredits = async (pack: 'credits_3' | 'credits_10') => {
+    setLoading(pack);
+    try {
+      const res = await fetch('/api/stripe/checkout-credits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pack }),
+      });
+      const data = await res.json() as { url?: string; error?: string };
+      if (res.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+      if (!res.ok) {
+        alert(data.error || 'Checkout failed.');
+        return;
+      }
+      if (data.url) window.location.href = data.url;
+    } catch {
+      alert('Checkout failed.');
     } finally {
       setLoading(null);
     }
@@ -166,6 +201,40 @@ export function Pricing() {
           ))}
         </div>
 
+        <RevealSection delay={2}>
+          <div className="max-w-3xl mx-auto mb-12 bg-midnight-light border border-white/10 rounded-2xl p-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-5">
+              <div>
+                <h3 className="text-white font-semibold text-lg">Pay-as-you-go report packs</h3>
+                <p className="text-white/50 text-sm">Unlock full reports and remediation plans without a monthly subscription.</p>
+              </div>
+              <p className="text-white/40 text-xs">
+                {authType === 'user'
+                  ? 'Checkout opens directly from here.'
+                  : authType === 'subscriber'
+                  ? 'Agency includes unlimited full reports.'
+                  : 'Sign in first, then checkout opens instantly.'}
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => handleBuyCredits('credits_3')}
+                disabled={loading !== null}
+                className="flex-1 rounded-xl py-3.5 px-6 font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-white/10 text-white hover:bg-white/20"
+              >
+                {loading === 'credits_3' ? 'Redirecting...' : 'Buy 3 reports — $29'}
+              </button>
+              <button
+                onClick={() => handleBuyCredits('credits_10')}
+                disabled={loading !== null}
+                className="flex-1 rounded-xl py-3.5 px-6 font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-white/10 text-white hover:bg-white/20"
+              >
+                {loading === 'credits_10' ? 'Redirecting...' : 'Buy 10 reports — $79'}
+              </button>
+            </div>
+          </div>
+        </RevealSection>
+
         {/* Sample report preview */}
         <RevealSection delay={2}>
           <div className="text-center mb-6">
@@ -179,6 +248,10 @@ export function Pricing() {
     </>
   );
 }
+
+
+
+
 
 
 

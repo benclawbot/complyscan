@@ -32,13 +32,13 @@ export default function SuccessClient() {
             return;
           } else if (data?.customerEmail) {
             setCustomerEmail(data.customerEmail);
-          } else if (attempts < 20) {
+          } else if (attempts < 80) {
             attempts += 1;
             setTimeout(poll, 1500);
           }
         })
         .catch(() => {
-          if (attempts < 20) {
+          if (attempts < 80) {
             attempts += 1;
             setTimeout(poll, 1500);
           }
@@ -93,6 +93,7 @@ export default function SuccessClient() {
     </div>
   );
 }
+
 
 
 
