@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [subscriberEmail, setSubscriberEmail] = useState("");
   const [subscriberLoading, setSubscriberLoading] = useState(false);
   const [subscriberError, setSubscriberError] = useState("");
+  const [subscriberSuccess, setSubscriberSuccess] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,6 +54,7 @@ export default function LoginPage() {
 
     setSubscriberLoading(true);
     setSubscriberError("");
+    setSubscriberSuccess("");
 
     try {
       const res = await fetch('/api/login', {
@@ -61,18 +63,13 @@ export default function LoginPage() {
         body: JSON.stringify({ email: subscriberEmail }),
       });
 
-      const data = await res.json() as { dashboardUrl?: string; notFound?: boolean; error?: string };
+      const data = await res.json() as { message?: string; error?: string };
       if (!res.ok) {
-        setSubscriberError(data.error || 'Unable to access subscriber dashboard.');
+        setSubscriberError(data.error || 'Unable to send secure login email.');
         return;
       }
 
-      if (data.dashboardUrl) {
-        window.location.href = data.dashboardUrl;
-        return;
-      }
-
-      setSubscriberError('No active subscription found for this email.');
+      setSubscriberSuccess(data.message || 'If the email matches an active subscription, we sent a secure dashboard link.');
     } catch {
       setSubscriberError('Failed to connect. Please try again.');
     } finally {
@@ -173,7 +170,7 @@ export default function LoginPage() {
         <div className="bg-midnight-light border border-white/10 rounded-2xl p-6 mt-5">
           <h2 className="text-white font-semibold mb-1">Agency subscriber access</h2>
           <p className="text-white/50 text-sm mb-4">
-            Already on the Agency plan? Enter your billing email to open your subscriber dashboard.
+            Already on the Agency plan? Enter your billing email and we&apos;ll send a secure dashboard link.
           </p>
           <form onSubmit={handleSubscriberAccess} className="space-y-3">
             <input
@@ -185,12 +182,13 @@ export default function LoginPage() {
               className="w-full rounded-lg bg-midnight border border-white/20 px-4 py-3 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-accent-blue"
             />
             {subscriberError && <p className="text-red-400 text-sm">{subscriberError}</p>}
+            {subscriberSuccess && <p className="text-green-400 text-sm">{subscriberSuccess}</p>}
             <button
               type="submit"
               disabled={subscriberLoading}
               className="w-full rounded-lg bg-white/10 px-6 py-3 font-semibold text-white hover:bg-white/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {subscriberLoading ? 'Checking...' : 'Open Subscriber Dashboard'}
+              {subscriberLoading ? 'Sending link...' : 'Email me my dashboard link'}
             </button>
           </form>
         </div>
@@ -204,6 +202,10 @@ export default function LoginPage() {
     </div>
   );
 }
+
+
+
+
 
 
 
