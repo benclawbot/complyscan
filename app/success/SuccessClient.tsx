@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { shouldContinuePollingForSubscriberToken } from './polling';
 
 export default function SuccessClient() {
   const router = useRouter();
@@ -18,6 +19,13 @@ export default function SuccessClient() {
 
     // Poll for the subscriber token — in real Stripe mode the webhook fires asynchronously
     let attempts = 0;
+    const queueRetry = () => {
+      if (attempts < 80) {
+        attempts += 1;
+        setTimeout(poll, 1500);
+      }
+    };
+
     const poll = () => {
       fetch(`/api/stripe/session?session_id=${encodeURIComponent(sessionId)}`)
         .then(async (res) => {
@@ -30,18 +38,18 @@ export default function SuccessClient() {
             document.cookie = `session_token=${encodeURIComponent(data.subscriberToken)}; path=/; SameSite=Lax`;
             router.replace(`/dashboard?token=${encodeURIComponent(data.subscriberToken)}`);
             return;
-          } else if (data?.customerEmail) {
+          }
+
+          if (data?.customerEmail) {
             setCustomerEmail(data.customerEmail);
-          } else if (attempts < 80) {
-            attempts += 1;
-            setTimeout(poll, 1500);
+          }
+
+          if (shouldContinuePollingForSubscriberToken(data)) {
+            queueRetry();
           }
         })
         .catch(() => {
-          if (attempts < 80) {
-            attempts += 1;
-            setTimeout(poll, 1500);
-          }
+          queueRetry();
         });
     };
     poll();
@@ -93,6 +101,9 @@ export default function SuccessClient() {
     </div>
   );
 }
+
+
+
 
 
 
