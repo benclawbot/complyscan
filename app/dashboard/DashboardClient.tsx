@@ -366,6 +366,26 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
     window.location.href = "/";
   };
 
+  const handleManageSubscription = async () => {
+    try {
+      const res = await fetch('/api/stripe/billing-portal', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${sessionToken}`,
+        },
+      });
+      const data = await res.json() as { url?: string; error?: string };
+      if (!res.ok || !data.url) {
+        alert(data.error || 'Unable to open billing portal.');
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      alert('Unable to open billing portal.');
+    }
+  };
+
   const handleBuyCredits = async (pack: 'credits_3' | 'credits_10') => {
     try {
       const res = await fetch('/api/stripe/checkout-credits', {
@@ -796,7 +816,7 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
         {/* Subscription status banner for subscribers */}
         {userType === "subscriber" && subscriptionStatus && (
           <div className={`rounded-xl p-4 mb-6 border ${isCancelling ? "bg-yellow-500/10 border-yellow-500/30" : "bg-accent-blue/10 border-accent-blue/30"}`}>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div>
                 <p className={`text-sm font-medium ${isCancelling ? "text-yellow-400" : "text-accent-blue"}`}>
                   {isCancelling
@@ -813,11 +833,19 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
                   </p>
                 )}
               </div>
-              {isCancelling && (
-                <span className="text-xs text-yellow-400 border border-yellow-400/40 px-2 py-1 rounded">
-                  Cancelling
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleManageSubscription}
+                  className="text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded transition-all"
+                >
+                  Manage billing
+                </button>
+                {isCancelling && (
+                  <span className="text-xs text-yellow-400 border border-yellow-400/40 px-2 py-1 rounded">
+                    Cancelling
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -912,3 +940,5 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
     </div>
   );
 }
+
+
