@@ -25,6 +25,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Unit tests
+        run: npm test
+
+      - name: API smoke tests (mocked server)
+        run: bash ./scripts/run-api-smoke-with-server.sh
+
       - name: Build OpenNext bundle
         run: npm run build
         env:
@@ -55,6 +61,7 @@ jobs:
           echo "$OPENAI_API_KEY" | npx wrangler pages secret put OPENAI_API_KEY --project complyscan
           echo "$OPENAI_BASE_URL" | npx wrangler pages secret put OPENAI_BASE_URL --project complyscan
           echo "$BROWSERLESS_API_KEY" | npx wrangler pages secret put BROWSERLESS_API_KEY --project complyscan
+
 
 
 

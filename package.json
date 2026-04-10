@@ -3,15 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build && npx @opennextjs/cloudflare build --skipNextBuild && cp .open-next/worker.js .open-next/_worker.js && cp -r .open-next/assets/* .open-next/ && printf '{\n  \"version\": 1,\n  \"include\": [\"/*\"],\n  \"exclude\": [\n    \"/_next/static/*\",\n    \"/favicon.ico\",\n    \"/robots.txt\",\n    \"/sitemap.xml\",\n    \"/site.webmanifest\"\n  ]\n}\n' > .open-next/_routes.json",
-    "start": "next start",
+    "predev": "node ./scripts/ensure-node-runtime.cjs",
+    "prebuild": "node ./scripts/ensure-node-runtime.cjs",
+    "pretest": "node ./scripts/ensure-node-runtime.cjs",
+    "dev": "node ./node_modules/next/dist/bin/next dev",
+    "build": "node ./node_modules/next/dist/bin/next build && npx @opennextjs/cloudflare build --skipNextBuild && cp .open-next/worker.js .open-next/_worker.js && cp -r .open-next/assets/* .open-next/ && printf '{\n  \"version\": 1,\n  \"include\": [\"/*\"],\n  \"exclude\": [\n    \"/_next/static/*\",\n    \"/favicon.ico\",\n    \"/robots.txt\",\n    \"/sitemap.xml\",\n    \"/site.webmanifest\"\n  ]\n}\n' > .open-next/_routes.json",
+    "start": "node ./node_modules/next/dist/bin/next start",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "test": "node ./node_modules/vitest/vitest.mjs run",
     "test:coverage": "node ./node_modules/vitest/vitest.mjs run --coverage",
+    "test:api:smoke": "node ./scripts/exhaustive-route-smoke.mjs",
     "test:e2e": "npx playwright test",
+    "test:e2e:headed": "npx playwright test --headed",
     "test:e2e:ui": "npx playwright test --ui",
     "test:e2e:debug": "npx playwright test --debug",
+    "test:exhaustive:local": "bash ./scripts/run-exhaustive-tests.sh",
     "playwright:install": "npx playwright install chromium --with-deps"
   },
   "dependencies": {
@@ -61,5 +67,7 @@
     "wrangler": "^4.80.0"
   }
 }
+
+
 
 

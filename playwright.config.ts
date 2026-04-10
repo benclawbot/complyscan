@@ -5,6 +5,8 @@ const PORT = process.env.PORT || '3100';
 const BASE_URL = process.env.BASE_URL || `http://127.0.0.1:${PORT}`;
 const REPO_ROOT = __dirname;
 
+const useExternalServer = process.env.PW_EXTERNAL_SERVER === '1';
+
 export default defineConfig({
   testDir: './tests',
   testMatch: '**/*.spec.ts',
@@ -22,17 +24,18 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
   },
-  webServer: {
-    // Use npm to ensure the dev server runs with the repo's intended dependency resolution.
-    command: `npm run dev -- -p ${PORT}`,
+  webServer: useExternalServer ? undefined : {
+    // Force a fresh mocked server per run to avoid stale/non-mock processes on the same port.
+    command: `node ./node_modules/next/dist/bin/next dev -p ${PORT}`,
     url: BASE_URL,
-    reuseExistingServer: true,
+    reuseExistingServer: false,
     timeout: 180_000,
     cwd: REPO_ROOT,
     env: {
       ...process.env,
       PORT,
       MOCK_STRIPE: '1',
+      MOCK_SCAN: '1',
       NEXT_PUBLIC_APP_URL: BASE_URL,
       BASE_URL,
     },
@@ -49,3 +52,6 @@ export default defineConfig({
     },
   ],
 });
+
+
+

@@ -58,14 +58,22 @@ test.describe('ComplyScan local E2E', () => {
       return;
     }
 
-    await page.waitForURL(/\/success\/?/, { timeout: 90_000 });
-    await expect(page.getByText(/subscription active/i)).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByRole('link', { name: /go to dashboard/i })).toBeVisible({ timeout: 60_000 });
-    await page.getByRole('link', { name: /go to dashboard/i }).click();
+    await page.waitForURL(/\/(success|dashboard)\/?/, { timeout: 90_000 });
+
+    if (!/\/dashboard(\?|$)/.test(page.url())) {
+      await expect(page.getByText(/subscription active/i)).toBeVisible({ timeout: 60_000 });
+      await expect(page.getByRole('link', { name: /go to dashboard/i })).toBeVisible({ timeout: 60_000 });
+      try {
+        await page.getByRole('link', { name: /go to dashboard/i }).click({ timeout: 10_000 });
+      } catch {
+        // Success page can auto-redirect and detach the CTA before click; fall through to URL wait.
+      }
+    }
 
     await page.waitForURL(/\/dashboard(\?token=.*)?$/, { timeout: 60_000 });
   });
 });
+
 
 
 
