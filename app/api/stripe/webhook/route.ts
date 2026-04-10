@@ -130,7 +130,11 @@ export async function POST(request: NextRequest) {
         const sub = await db.prepare('SELECT id FROM subscribers WHERE stripe_customer_id = ?').get(customerId) as any;
         if (sub) {
           if (status === 'active') {
-            await db.prepare('UPDATE subscriber_tokens SET expires_at = NULL WHERE subscriber_id = ?').run(sub.id);
+            if (cancelAtPeriodEnd && periodEnd) {
+              await db.prepare('UPDATE subscriber_tokens SET expires_at = ? WHERE subscriber_id = ?').run(periodEnd, sub.id);
+            } else {
+              await db.prepare('UPDATE subscriber_tokens SET expires_at = NULL WHERE subscriber_id = ?').run(sub.id);
+            }
           } else if (periodEnd) {
             await db.prepare('UPDATE subscriber_tokens SET expires_at = ? WHERE subscriber_id = ?').run(periodEnd, sub.id);
           }
@@ -190,3 +194,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal error', detail: err.message }, { status: 500 });
   }
 }
+

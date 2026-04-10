@@ -16,11 +16,26 @@ export async function getSubscriberTokenRecord(db: DbClient, token: string) {
   `).get(token) as any;
 }
 
+function isPast(isoValue?: string | null): boolean {
+  if (!isoValue) return false;
+  const ts = Date.parse(isoValue);
+  if (Number.isNaN(ts)) return false;
+  return ts < Date.now();
+}
+
+function isSubscriberAccessExpired(rec: any): boolean {
+  if (!rec) return true;
+  if (rec.expires_at && isPast(rec.expires_at)) return true;
+  const cancellationReachedEnd = Boolean(rec.cancel_at_period_end) && isPast(rec.current_period_end);
+  if (cancellationReachedEnd) return true;
+  return false;
+}
+
 export async function verifySubscriberToken(db: DbClient, token: string, requiredPlan?: 'agency') {
   const rec = await getSubscriberTokenRecord(db, token);
   if (!rec) return null;
   if (rec.status !== 'active') return null;
-  if (rec.expires_at && new Date(rec.expires_at) < new Date()) return null;
+  if (isSubscriberAccessExpired(rec)) return null;
   if (requiredPlan && rec.plan !== requiredPlan) return null;
   return rec;
 }
@@ -72,3 +87,4 @@ export async function touchUserSession(db: DbClient, token: string) {
     // Backward-compat for older DB schemas: ignore touch update when column is absent.
   }
 }
+

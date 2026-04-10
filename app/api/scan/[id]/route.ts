@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, parseResultJson } from '@/lib/env';
-import { getBearerToken, getSubscriberTokenRecord, getUserSession, touchSubscriberToken, touchUserSession } from '@/lib/auth';
+import { getBearerToken, verifySubscriberToken, getUserSession, touchSubscriberToken, touchUserSession } from '@/lib/auth';
 import { hasUnlockedReport, unlockReportWithCredit } from '@/lib/report-access';
 import { isNormalizedScanResultV2, normalizeScanResultV2 } from '@/lib/scan-normalize';
 
@@ -46,7 +46,7 @@ export async function GET(
   let fullAccess = false;
 
   if (token && scan.status === 'completed') {
-    const sub = await getSubscriberTokenRecord(db, token);
+    const sub = await verifySubscriberToken(db, token);
     if (sub) {
       await touchSubscriberToken(db, token);
       const authorized = !scan.subscriber_id || scan.subscriber_id === sub.subscriber_id || scan.email === sub.email;
@@ -103,5 +103,7 @@ export async function GET(
     completed_at: scan.completed_at,
   });
 }
+
+
 
 

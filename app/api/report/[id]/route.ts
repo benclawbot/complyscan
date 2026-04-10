@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, getRuntimeEnv, parseResultJson, getStripeSecrets } from '@/lib/env';
 import { generateReportHtml } from '@/lib/report';
 import { retrieveCheckoutSession } from '@/lib/stripe-api';
-import { getBearerToken, getSubscriberTokenRecord, getUserSession, touchSubscriberToken, touchUserSession } from '@/lib/auth';
+import { getBearerToken, verifySubscriberToken, getUserSession, touchSubscriberToken, touchUserSession } from '@/lib/auth';
 import { getBranding } from '@/lib/branding';
 import { hasUnlockedReport, unlockReportWithCredit } from '@/lib/report-access';
 
@@ -40,7 +40,7 @@ export async function GET(
     let full = false;
 
     if (token) {
-      const sub = await getSubscriberTokenRecord(db, token);
+      const sub = await verifySubscriberToken(db, token);
       if (sub) {
         await touchSubscriberToken(db, token);
         const authorized = !scan.subscriber_id || scan.subscriber_id === sub.subscriber_id || scan.email === sub.email;
@@ -113,5 +113,7 @@ export async function GET(
 
   return jsonNoStore({ error: 'Scan not yet complete' }, { status: 202 });
 }
+
+
 
 

@@ -3,7 +3,7 @@ import { getDb, getRuntimeEnv, parseResultJson } from '@/lib/env';
 import { generatePDF } from '@/lib/report-pdf';
 import { generateReportHtml } from '@/lib/report';
 import { buildMockScanResult } from '@/lib/mock-scan';
-import { getBearerToken, getSubscriberTokenRecord, getUserSession, touchSubscriberToken, touchUserSession } from '@/lib/auth';
+import { getBearerToken, verifySubscriberToken, getUserSession, touchSubscriberToken, touchUserSession } from '@/lib/auth';
 import { getBranding } from '@/lib/branding';
 import { hasUnlockedReport, unlockReportWithCredit } from '@/lib/report-access';
 
@@ -68,7 +68,7 @@ export async function GET(
   let branding: any = null;
 
   if (token) {
-    const sub = await getSubscriberTokenRecord(db, token);
+    const sub = await verifySubscriberToken(db, token);
     if (sub) {
       await touchSubscriberToken(db, token);
       const authorized = !scan.subscriber_id || scan.subscriber_id === sub.subscriber_id || scan.email === sub.email;
@@ -122,3 +122,5 @@ export async function GET(
     return htmlFallbackResponse(html, fileBase);
   }
 }
+
+

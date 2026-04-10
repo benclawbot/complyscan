@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import { getDb, getRuntimeEnv, getStripeSecrets } from '@/lib/env';
-import { retrieveCheckoutSession, retrieveCustomer } from '@/lib/stripe-api';
+import { retrieveCheckoutSession, retrieveCustomer, retrieveSubscription } from '@/lib/stripe-api';
 
 export async function GET(request: NextRequest) {
   const sessionId = request.nextUrl.searchParams.get('session_id');
@@ -59,6 +59,19 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      let periodEndIso: string | null = null;
+      let cancelAtPeriodEnd = false;
+      const stripeSubscriptionId = String(session.subscription || '').trim();
+      if (stripeSubscriptionId) {
+        try {
+          const sub = await retrieveSubscription(stripeSubscriptionId, stripeSecrets.STRIPE_SECRET_KEY);
+          periodEndIso = sub?.current_period_end ? new Date(Number(sub.current_period_end) * 1000).toISOString() : null;
+          cancelAtPeriodEnd = Boolean(sub?.cancel_at_period_end);
+        } catch {
+          // ignore subscription lookup failures
+        }
+      }
+
       if (stripeCustomerId) {
         let subscriber = await db.prepare('SELECT id, email FROM subscribers WHERE stripe_customer_id = ?').get(stripeCustomerId) as any;
 
@@ -69,16 +82,16 @@ export async function GET(request: NextRequest) {
           if (existingByEmail?.id) {
             await db.prepare(`
               UPDATE subscribers
-              SET stripe_customer_id = ?, plan = 'agency', status = 'active', updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+              SET stripe_customer_id = ?, plan = 'agency', status = 'active', current_period_end = COALESCE(?, current_period_end), cancel_at_period_end = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
               WHERE id = ?
-            `).run(stripeCustomerId, existingByEmail.id);
+            `).run(stripeCustomerId, periodEndIso, cancelAtPeriodEnd ? 1 : 0, existingByEmail.id);
             subscriber = { id: existingByEmail.id, email: existingByEmail.email || sessionCustomerEmail };
           } else {
             const subscriberId = uuidv4();
             await db.prepare(`
               INSERT INTO subscribers (id, stripe_customer_id, email, plan, status, current_period_end, cancel_at_period_end, updated_at)
-              VALUES (?, ?, ?, 'agency', 'active', NULL, 0, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-            `).run(subscriberId, stripeCustomerId, sessionCustomerEmail);
+              VALUES (?, ?, ?, 'agency', 'active', ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+            `).run(subscriberId, stripeCustomerId, sessionCustomerEmail, periodEndIso, cancelAtPeriodEnd ? 1 : 0);
             subscriber = { id: subscriberId, email: sessionCustomerEmail };
           }
         }
@@ -86,9 +99,9 @@ export async function GET(request: NextRequest) {
         if (subscriber && subscriptionIsComplete) {
           await db.prepare(`
             UPDATE subscribers
-            SET plan = 'agency', status = 'active', updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+            SET plan = 'agency', status = 'active', current_period_end = COALESCE(?, current_period_end), cancel_at_period_end = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
             WHERE id = ?
-          `).run(subscriber.id);
+          `).run(periodEndIso, cancelAtPeriodEnd ? 1 : 0, subscriber.id);
         }
 
         if (subscriber && !result.subscriberToken) {
@@ -149,6 +162,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+
+
+
+
 
 
 

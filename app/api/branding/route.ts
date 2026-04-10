@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, getRuntimeEnv } from '@/lib/env';
-import { getBearerToken, getSubscriberTokenRecord, getUserSession, touchSubscriberToken, touchUserSession } from '@/lib/auth';
+import { getBearerToken, verifySubscriberToken, getUserSession, touchSubscriberToken, touchUserSession } from '@/lib/auth';
 import { getBranding, upsertBranding } from '@/lib/branding';
 
 function badRequest(message: string) {
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   const env: any = getRuntimeEnv((request as any).env ?? (globalThis as any).__env ?? undefined);
   const db = getDb(env);
 
-  const sub = await getSubscriberTokenRecord(db, token);
+  const sub = await verifySubscriberToken(db, token);
   if (sub) {
     await touchSubscriberToken(db, token);
     const branding = await getBranding(db, { type: 'subscriber', id: sub.subscriber_id });
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
   const env: any = getRuntimeEnv((request as any).env ?? (globalThis as any).__env ?? undefined);
   const db = getDb(env);
 
-  const sub = await getSubscriberTokenRecord(db, token);
+  const sub = await verifySubscriberToken(db, token);
   if (sub) {
     await touchSubscriberToken(db, token);
     await upsertBranding(db, { type: 'subscriber', id: sub.subscriber_id }, { agencyName, logoUrl, logoDataUrl });
@@ -61,4 +61,6 @@ export async function POST(request: NextRequest) {
   await upsertBranding(db, { type: 'user', id: session.user_id }, { agencyName, logoUrl, logoDataUrl });
   return NextResponse.json({ ok: true });
 }
+
+
 
