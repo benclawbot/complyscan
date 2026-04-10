@@ -61,6 +61,7 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
   const [clientError, setClientError] = useState("");
   const [clientSuccess, setClientSuccess] = useState("");
   const [scanningClient, setScanningClient] = useState<string | null>(null);
+  const [pendingAutoOpenScanIds, setPendingAutoOpenScanIds] = useState<string[]>([]);
 
   const [branding, setBranding] = useState<{ agencyName: string; logoDataUrl: string }>({
     agencyName: "",
@@ -168,25 +169,18 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
       .catch(() => {});
   };
 
-  const loadScans = (type: "user" | "subscriber") => {
-    if (type === "subscriber") {
-      fetch("/api/scan/subscriber", {
+  const loadScans = async (type: "user" | "subscriber") => {
+    try {
+      const endpoint = type === "subscriber" ? "/api/scan/subscriber" : "/api/scan/user";
+      const res = await fetch(endpoint, {
         headers: { Authorization: `Bearer ${sessionToken}` },
-      })
-        .then((res) => res.json() as Promise<{ scans: any[] }>)
-        .then((data) => {
-          if (data.scans) setRecentScans(data.scans);
-        })
-        .catch(() => {});
-    } else {
-      fetch("/api/scan/user", {
-        headers: { Authorization: `Bearer ${sessionToken}` },
-      })
-        .then((res) => res.json() as Promise<{ scans: any[] }>)
-        .then((data) => {
-          if (data.scans) setRecentScans(data.scans);
-        })
-        .catch(() => {});
+      });
+      const data = await res.json() as { scans?: any[] };
+      const scans = Array.isArray(data.scans) ? data.scans : [];
+      setRecentScans(scans);
+      return scans;
+    } catch {
+      return [] as any[];
     }
   };
 
@@ -201,6 +195,31 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
       })
       .catch(() => {});
   };
+
+  useEffect(() => {
+    if (!authenticated || !sessionToken || !userType) return;
+
+    const hasProcessingScan = recentScans.some((scan) => scan.status === 'processing' || scan.status === 'pending');
+    const shouldPoll = hasProcessingScan || pendingAutoOpenScanIds.length > 0;
+    if (!shouldPoll) return;
+
+    const interval = window.setInterval(async () => {
+      const scans = await loadScans(userType);
+      if (isAgency) {
+        loadClients();
+        if (selectedClient?.id) loadClientDetails(selectedClient.id);
+      }
+
+      const completedTarget = scans.find((scan: any) => pendingAutoOpenScanIds.includes(scan.id) && scan.status === 'completed');
+      if (!completedTarget) return;
+
+      setPendingAutoOpenScanIds((prev) => prev.filter((id) => id !== completedTarget.id));
+      const query = isAgency ? '&agency=true' : '';
+      window.location.href = `/report/${completedTarget.id}?token=${encodeURIComponent(sessionToken)}${query}`;
+    }, 4000);
+
+    return () => window.clearInterval(interval);
+  }, [authenticated, sessionToken, userType, recentScans, pendingAutoOpenScanIds, isAgency, selectedClient?.id]);
 
   const handleScan = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,6 +238,7 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
       const data = await res.json() as { scanId?: string; error?: string };
       if (!res.ok) {
         setError(data.error || "Scan failed. Please try again.");
+        setScanning(false);
         return;
       }
       setScanMessage("Scan started! The report will appear in your history once ready.");
@@ -228,6 +248,7 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
           { id: data.scanId, url, status: "processing", created_at: new Date().toISOString() },
           ...prev,
         ]);
+        setPendingAutoOpenScanIds((prev) => (prev.includes(data.scanId as string) ? prev : [...prev, data.scanId as string]));
       }
     } else {
       const res = await fetch("/api/scan/user", {
@@ -241,6 +262,7 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
       const data = await res.json() as { scanId?: string; error?: string };
       if (!res.ok) {
         setError(data.error || "Scan failed. Please try again.");
+        setScanning(false);
         return;
       }
       setScanMessage("Scan started! The report will appear below once ready.");
@@ -250,6 +272,7 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
           { id: data.scanId, url, status: "processing", created_at: new Date().toISOString() },
           ...prev,
         ]);
+        setPendingAutoOpenScanIds((prev) => (prev.includes(data.scanId as string) ? prev : [...prev, data.scanId as string]));
       }
     }
     setScanning(false);
@@ -298,13 +321,22 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
       body: JSON.stringify({ clientId, token: sessionToken }),
     });
 
-    const data = await res.json() as { error?: string };
+    const data = await res.json() as { error?: string; scanId?: string };
     if (!res.ok) {
       setClientError(data.error || "Scan failed.");
+      setScanningClient(null);
       return;
     }
 
     setClientSuccess("Scan started! The report will appear in client history once ready.");
+    if (data.scanId) {
+      const client = clients.find((c) => c.id === clientId);
+      setRecentScans((prev) => [
+        { id: data.scanId, url: client?.url || '(client URL)', status: 'processing', created_at: new Date().toISOString() },
+        ...prev,
+      ]);
+      setPendingAutoOpenScanIds((prev) => (prev.includes(data.scanId as string) ? prev : [...prev, data.scanId as string]));
+    }
     // Refresh client list and details
     loadClients();
     setTimeout(() => loadClientDetails(clientId), 1000);

@@ -34,16 +34,29 @@ function validateResult(obj: unknown): obj is AiAnalysisResult {
   );
 }
 
-function heuristicScoreFromChecks(ruleBasedChecks: any[]): number {
-  const checks = Array.isArray(ruleBasedChecks) ? ruleBasedChecks : [];
-  let score = 100;
-  for (const c of checks) {
-    if (c?.passed !== false) continue;
-    const severity = String(c?.severity || '').toLowerCase();
-    if (severity === 'critical') score -= 25;
-    else if (severity === 'warning') score -= 10;
-    else score -= 3;
+function heuristicScoreFromFindings(ruleBasedChecks: any[], aiIssues: any[] = []): number {
+  const failedChecks = (Array.isArray(ruleBasedChecks) ? ruleBasedChecks : []).filter((c) => c?.passed === false);
+  const findings = [
+    ...failedChecks.map((c) => ({ severity: c?.severity })),
+    ...(Array.isArray(aiIssues) ? aiIssues : []),
+  ];
+
+  let critical = 0;
+  let warning = 0;
+  let info = 0;
+
+  for (const finding of findings) {
+    const severity = String(finding?.severity || '').toLowerCase();
+    if (severity === 'critical' || severity === 'high') critical += 1;
+    else if (severity === 'warning' || severity === 'medium') warning += 1;
+    else info += 1;
   }
+
+  const weightedSeverityPenalty = critical * 18 + warning * 8 + info * 2;
+  const volumePenalty = Math.max(0, findings.length - 2) * 1.5;
+  const criticalStackPenalty = critical >= 3 ? (critical - 2) * 3 : 0;
+
+  const score = 100 - weightedSeverityPenalty - volumePenalty - criticalStackPenalty;
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
@@ -132,7 +145,7 @@ Return a JSON object with this exact structure:
 
 Be specific. Generic advice is not helpful. Focus on actionable fixes.`;
 
-  const fallbackScore = heuristicScoreFromChecks(ruleBasedChecks);
+  const fallbackScore = heuristicScoreFromFindings(ruleBasedChecks);
   const fallbackRisk = riskFromScore(fallbackScore);
 
   let content = '';
@@ -285,5 +298,10 @@ Be specific. Generic advice is not helpful. Focus on actionable fixes.`;
     };
   }
 
-  return parsed;
+  const computedScore = heuristicScoreFromFindings(ruleBasedChecks, parsed.issues || []);
+  return {
+    ...parsed,
+    gdprScore: computedScore,
+    riskLevel: riskFromScore(computedScore),
+  };
 }

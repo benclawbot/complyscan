@@ -32,12 +32,6 @@ export default function ReportPage() {
     setTimeout(() => printWindow.print(), 150);
   };
 
-  const handleDownloadPdf = () => {
-    if (!scanId) return;
-    const pdfUrl = `/api/report/${encodeURIComponent(scanId)}/pdf`;
-    window.open(pdfUrl, '_blank', 'noopener,noreferrer');
-  };
-
   useEffect(() => {
     if (!scanId) return;
 
@@ -115,12 +109,9 @@ export default function ReportPage() {
         <div className="max-w-4xl mx-auto px-4 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-white font-semibold text-base">Your GDPR report is ready</h1>
-            <p className="text-white/40 text-xs">{fullReport ? "Download a PDF or print from your browser." : "Preview report. Unlock to download the full PDF."}</p>
+            <p className="text-white/40 text-xs">{fullReport ? "Print or save as PDF from your browser." : "Preview report. Unlock to print or save as PDF."}</p>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={handleDownloadPdf} className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-lg text-sm font-medium hover:bg-white/20 transition-all">
-              Download PDF
-            </button>
             <button onClick={handlePrint} className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-lg text-sm font-medium hover:bg-white/20 transition-all">
               Print / Save as PDF
             </button>
@@ -142,4 +133,3 @@ export default function ReportPage() {
     </div>
   );
 }
-
