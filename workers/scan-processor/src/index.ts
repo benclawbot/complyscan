@@ -220,6 +220,26 @@ export default {
       }
     }
 
+    if (request.method === 'POST' && url.pathname === '/mail/send') {
+      try {
+        const body = await request.json() as { email?: string; subject?: string; html?: string; name?: string };
+        const email = String(body?.email || '').trim();
+        const subject = String(body?.subject || '').trim();
+        const html = String(body?.html || '');
+        const name = body?.name ? String(body.name) : undefined;
+
+        if (!email || !subject || !html) {
+          return Response.json({ error: 'email, subject and html are required' }, { status: 400 });
+        }
+
+        await sendHtmlEmail(env, { email, subject, html, name });
+        return Response.json({ ok: true });
+      } catch (err: any) {
+        console.error('[Worker] /mail/send error:', err?.message || err);
+        return Response.json({ error: err?.message || 'mail send failed' }, { status: 500 });
+      }
+    }
+
     if (request.method === 'GET' && url.pathname === '/health') {
       return Response.json({ status: 'ok', queue: 'compliance-checker-scan-queue' });
     }
@@ -739,32 +759,48 @@ async function compressGzipBase64(text: string): Promise<string> {
   return btoa(binary);
 }
 
+async function sendHtmlEmail(env: Env, input: { email: string; subject: string; html: string; name?: string }): Promise<void> {
+  const apiKey = env.MAILJET_API_KEY;
+  const secretKey = env.MAILJET_SECRET_KEY;
+  if (!apiKey || !secretKey) throw new Error('Mailjet credentials missing on worker');
+
+  const credentials = btoa(`${apiKey}:${secretKey}`);
+  const resp = await fetch('https://api.mailjet.com/v3.1/send', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Basic ${credentials}`,
+    },
+    body: JSON.stringify({
+      Messages: [{
+        From: { Email: 'hello@complyscan.ch', Name: 'ComplyScan' },
+        To: [{ Email: input.email, Name: input.name || undefined }],
+        Subject: input.subject,
+        HTMLPart: input.html,
+      }],
+    }),
+  });
+
+  if (!resp.ok) {
+    const detail = await resp.text().catch(() => '');
+    throw new Error(`Mailjet send failed (${resp.status}): ${detail}`);
+  }
+}
+
 async function sendReportEmail(env: Env, email: string, url: string, result: any): Promise<void> {
   try {
-    const apiKey = env.MAILJET_API_KEY;
-    const secretKey = env.MAILJET_SECRET_KEY;
-    if (!apiKey || !secretKey) return;
-    const credentials = btoa(`${apiKey}:${secretKey}`);
     const html = `<html><body><h1>ComplyScan Report</h1><p>URL: ${url}</p><p>Score: ${result.aiAnalysis?.gdprScore ?? 50}</p></body></html>`;
-    await fetch('https://api.mailjet.com/v3.1/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Basic ${credentials}`,
-      },
-      body: JSON.stringify({
-        Messages: [{
-          From: { Email: 'reports@complyscan.com', Name: 'ComplyScan' },
-          To: [{ Email: email }],
-          Subject: `GDPR Compliance Report for ${url}`,
-          HTMLPart: html,
-        }],
-      }),
+    await sendHtmlEmail(env, {
+      email,
+      subject: `GDPR Compliance Report for ${url}`,
+      html,
     });
   } catch (err) {
     console.error('[Worker] Failed to send report email:', err);
   }
 }
+
+
 
 
 

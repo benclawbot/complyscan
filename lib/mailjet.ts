@@ -1,17 +1,32 @@
 /**
  * Mailjet integration — subscribe users and trigger nurture sequence
- * Credentials come from .env.local (project-scoped, approved in TOOLS.md)
  */
 
-const MJ_API_KEY = process.env.MAILJET_API_KEY!;
-const MJ_SECRET_KEY = process.env.MAILJET_SECRET_KEY!;
-const MJ_BASE = 'https://api.mailjet.com/v4';
-const LIST_ID = process.env.MAILJET_LIST_ID!; // set after running setup script
+type MailjetVersion = 'v3' | 'v3.1';
 
-const auth = Buffer.from(`${MJ_API_KEY}:${MJ_SECRET_KEY}`).toString('base64');
+type MailjetConfig = {
+  apiKey: string;
+  secretKey: string;
+  listId?: string;
+};
 
-async function mj(endpoint: string, options: RequestInit = {}): Promise<any> {
-  const r = await fetch(`${MJ_BASE}${endpoint}`, {
+function getMailjetConfig(): MailjetConfig {
+  const apiKey = process.env.MAILJET_API_KEY?.trim() || '';
+  const secretKey = process.env.MAILJET_SECRET_KEY?.trim() || '';
+  const listId = process.env.MAILJET_LIST_ID?.trim() || undefined;
+
+  if (!apiKey || !secretKey) {
+    throw new Error('Mailjet credentials are not configured');
+  }
+
+  return { apiKey, secretKey, listId };
+}
+
+async function mj(endpoint: string, options: RequestInit = {}, version: MailjetVersion = 'v3'): Promise<any> {
+  const { apiKey, secretKey } = getMailjetConfig();
+  const auth = Buffer.from(`${apiKey}:${secretKey}`).toString('base64');
+
+  const r = await fetch(`https://api.mailjet.com/${version}${endpoint}`, {
     ...options,
     headers: {
       Authorization: `Basic ${auth}`,
@@ -19,15 +34,15 @@ async function mj(endpoint: string, options: RequestInit = {}): Promise<any> {
       ...options.headers,
     },
   });
+
   const body = await r.text();
-  if (!r.ok) throw new Error(`Mailjet ${options.method || 'GET'} ${endpoint} → ${r.status}: ${body}`);
-  return JSON.parse(body);
+  if (!r.ok) {
+    throw new Error(`Mailjet ${options.method || 'GET'} ${version}${endpoint} → ${r.status}: ${body}`);
+  }
+
+  return body ? JSON.parse(body) : null;
 }
 
-/**
- * Add a new user to the ComplyScan nurture list and trigger the sequence.
- * Called from the scan API after a successful Stripe checkout or free scan.
- */
 export async function subscribeToNurture({
   email,
   firstName,
@@ -38,8 +53,9 @@ export async function subscribeToNurture({
   scanUrl?: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    // 1. Upsert contact
-    await mj('/contact', {
+    const { listId } = getMailjetConfig();
+
+    await mj('/REST/contact', {
       method: 'POST',
       body: JSON.stringify({
         Email: email,
@@ -49,21 +65,19 @@ export async function subscribeToNurture({
         },
         IsExcludedFromCampaigns: false,
       }),
-    });
+    }, 'v3');
 
-    // 2. Add to contact list (GDPR: user explicitly opted in via scan purchase/signup)
-    if (LIST_ID) {
-      await mj(`/contactslist/${LIST_ID}/managecontact`, {
+    if (listId) {
+      await mj(`/REST/contactslist/${listId}/managecontact`, {
         method: 'POST',
         body: JSON.stringify({
           Email: email,
           Name: 'add',
           IsUnsubscribed: false,
         }),
-      });
+      }, 'v3');
     }
 
-    // 3. Send welcome email immediately via template
     await mj('/send', {
       method: 'POST',
       body: JSON.stringify({
@@ -81,21 +95,16 @@ export async function subscribeToNurture({
           },
         ],
       }),
-    });
+    }, 'v3.1');
 
     console.log(`[Mailjet] Nurture sequence triggered for: ${email}`);
     return { success: true };
   } catch (err: any) {
-    // Non-fatal — don't block the scan flow if Mailjet is down
     console.error(`[Mailjet] Nurture error for ${email}: ${err.message}`);
     return { success: false, error: err.message };
   }
 }
 
-/**
- * Send the Day-2 scan tips email to a specific contact.
- * Can be called from a cron job or triggered manually.
- */
 export async function sendScanTipsEmail(email: string): Promise<void> {
   await mj('/send', {
     method: 'POST',
@@ -110,12 +119,9 @@ export async function sendScanTipsEmail(email: string): Promise<void> {
         },
       ],
     }),
-  });
+  }, 'v3.1');
 }
 
-/**
- * Send the Day-7 upgrade email to a specific contact.
- */
 export async function sendUpgradeEmail(email: string): Promise<void> {
   await mj('/send', {
     method: 'POST',
@@ -130,7 +136,7 @@ export async function sendUpgradeEmail(email: string): Promise<void> {
         },
       ],
     }),
-  });
+  }, 'v3.1');
 }
 
 export async function sendReportEmail({
@@ -156,5 +162,5 @@ export async function sendReportEmail({
         },
       ],
     }),
-  });
+  }, 'v3.1');
 }

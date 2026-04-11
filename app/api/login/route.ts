@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { getDb, getRuntimeEnv } from '@/lib/env';
-import { sendReportEmail } from '@/lib/mailjet';
 
 export async function POST(request: NextRequest, { params: _params }: { params: Promise<{ id: string }> }, env: any) {
   try {
@@ -61,14 +60,32 @@ export async function POST(request: NextRequest, { params: _params }: { params: 
     `;
 
     try {
-      await sendReportEmail({
-        email,
-        subject: 'Your ComplyScan subscriber dashboard link',
-        html,
-        name: undefined,
+      const workerUrl = runtimeEnv?.SCAN_WORKER_URL || 'https://compliance-checker-scan-processor.benclawbot.workers.dev';
+      const resp = await fetch(`${workerUrl}/mail/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          subject: 'Your ComplyScan subscriber dashboard link',
+          html,
+          name: undefined,
+        }),
       });
+
+      if (!resp.ok) {
+        const details = await resp.text().catch(() => '');
+        throw new Error(`Worker mail dispatch failed (${resp.status}): ${details}`);
+      }
     } catch (mailError: any) {
-      console.error('Subscriber login email error:', mailError?.message || mailError);
+      const msg = String(mailError?.message || mailError || '');
+      console.error('Subscriber login email error:', msg);
+
+      if (/temporarily blocked/i.test(msg)) {
+        return NextResponse.json({
+          error: 'Email provider is temporarily blocked. Please contact support to restore transactional emails, or use your saved dashboard token link.',
+        }, { status: 503 });
+      }
+
       return NextResponse.json({ error: 'Unable to send email right now. Please try again.' }, { status: 503 });
     }
 
@@ -78,6 +95,9 @@ export async function POST(request: NextRequest, { params: _params }: { params: 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+
+
 
 
 
