@@ -200,15 +200,16 @@ export function generateReportHtml(url: string, result: ScanResult | NormalizedS
   const failCount = ruleChecks.filter(c => !c.passed).length;
 
   const allIssues = normalized.issues ?? [];
-  const displayedIssues = fullReport ? allIssues : allIssues.slice(0, 3);
-  const hiddenIssueCount = allIssues.length - displayedIssues.length;
-  const issueCount = displayedIssues.length;
+  const aiOnlyIssues = allIssues.filter((issue: any) => String(issue?.type || '').toLowerCase() === 'ai_finding');
+  const displayedAiIssues = fullReport ? aiOnlyIssues : aiOnlyIssues.slice(0, 3);
+  const hiddenAiIssueCount = aiOnlyIssues.length - displayedAiIssues.length;
+  const issueCount = displayedAiIssues.length;
 
   const allFailedChecks = ruleChecks.filter(c => !c.passed);
   const displayedFailedChecks = fullReport ? allFailedChecks : allFailedChecks.slice(0, 3);
   const hiddenFailedCount = allFailedChecks.length - displayedFailedChecks.length;
   const passedChecks = ruleChecks.filter(c => c.passed);
-  const criticalIssues = displayedIssues.filter(i => i.severity === 'critical');
+  const criticalIssues = displayedAiIssues.filter(i => i.severity === 'critical');
 
   const scanDate = new Date(scannedAt).toLocaleDateString('en-GB', {
     timeZone: 'Europe/Zurich',
@@ -249,13 +250,13 @@ export function generateReportHtml(url: string, result: ScanResult | NormalizedS
   </div>`;
 
   const execSummaryPreviewNote = !fullReport ? `<div style="background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#92400e;">
-      <strong>Free Preview:</strong> This report shows ${displayedFailedChecks.length} of ${allFailedChecks.length} failed checks and ${displayedIssues.length} of ${allIssues.length} AI findings. Upgrade to access the full compliance analysis with all findings and detailed remediation steps.
+      <strong>Free Preview:</strong> This report shows ${displayedFailedChecks.length} of ${allFailedChecks.length} failed checks and ${displayedAiIssues.length} of ${aiOnlyIssues.length} AI findings. Upgrade to access the full compliance analysis with all findings and detailed remediation steps.
     </div>` : '';
   const execSummary = card(`
     ${h3('Executive Summary')}
     ${p(`This automated GDPR compliance scan was conducted on <strong>${esc(url)}</strong> on ${scanDate}. The scan uses a combination of rule-based automated checks and AI-powered analysis to identify potential GDPR compliance gaps.`)}
     ${p(`The overall compliance score is <strong style="color:${scoreColorVal}">${score}/100</strong>, classified as <strong>${riskLabel(risk)}</strong>.`)}
-    ${p(`The automated rule engine performed ${ruleChecks.length} checks, of which <strong style="color:${SUCCESS}">${passCount} passed</strong> and <strong style="color:${FAIL}">${failCount} failed</strong>. The AI analysis identified <strong>${issueCount} additional findings</strong>${criticalIssues.length > 0 ? `, including <strong>${criticalIssues.length} critical</strong>` : ''}.`)}
+    ${p(`The automated rule engine performed ${ruleChecks.length} checks, of which <strong style="color:${SUCCESS}">${passCount} passed</strong> and <strong style="color:${FAIL}">${failCount} failed</strong>. The AI analysis identified <strong>${issueCount} additional findings</strong> beyond rule-based checks${criticalIssues.length > 0 ? `, including <strong>${criticalIssues.length} critical</strong>` : ''}.`)}
     ${aiAnalysis?.summary ? p(`<strong>AI Assessment:</strong> ${esc(aiAnalysis.summary)}`) : ''}
     ${execSummaryPreviewNote}
   `);
@@ -265,7 +266,7 @@ export function generateReportHtml(url: string, result: ScanResult | NormalizedS
     'Score Breakdown',
     'Key Findings',
     'Automated Checks',
-    ...(allIssues.length > 0 ? ['AI-Detected Issues'] : []),
+    ...(aiOnlyIssues.length > 0 ? ['AI-Detected Issues'] : []),
     'Privacy Policy Analysis',
     'GDPR Articles Quick Reference',
     'Remediation Action Plan',
@@ -284,7 +285,7 @@ export function generateReportHtml(url: string, result: ScanResult | NormalizedS
     : '';
 
   const topFailedChecks = allFailedChecks.slice(0, 5);
-  const topIssues = allIssues.slice(0, 5);
+  const topIssues = aiOnlyIssues.slice(0, 5);
 
   const keyFindingsPage = fullReport
     ? sectionTitle('Key Findings') +
@@ -302,7 +303,7 @@ export function generateReportHtml(url: string, result: ScanResult | NormalizedS
               : `<div style="font-size:13px;color:${SUCCESS};">No failed checks detected.</div>`}
           </div>
           <div>
-            ${h3(`Top AI Findings (${allIssues.length})`)}
+            ${h3(`Top AI Findings (${aiOnlyIssues.length})`)}
             ${topIssues.length
               ? topIssues.map((i) => `<div style="padding:10px 12px;border:1px solid ${BORDER};border-radius:10px;margin-bottom:10px;background:${severityBg(i.severity)};">
                   <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
@@ -363,15 +364,15 @@ export function generateReportHtml(url: string, result: ScanResult | NormalizedS
     (hiddenFailedCount > 0 ? `<div style="text-align:center;margin-top:8px;font-size:13px;color:${TEXT_MUTED};">+ ${hiddenFailedCount} more failed checks in full report</div>` : '') +
     passedChecksSection;
 
-  const aiUpgradeNote = !fullReport && hiddenIssueCount > 0 ? `
+  const aiUpgradeNote = !fullReport && hiddenAiIssueCount > 0 ? `
     <div style="background:#eff6ff;border:1px solid ${ACCENT};border-radius:8px;padding:14px 16px;margin:16px 0;font-size:13px;color:${ACCENT};text-align:center;">
-      <strong>Upgrade to access all ${allIssues.length} AI findings</strong> including critical and warning severity items with full evidence and fix recommendations.
+      <strong>Upgrade to access all ${aiOnlyIssues.length} AI findings</strong> including critical and warning severity items with full evidence and fix recommendations.
     </div>` : '';
 
-  const aiIssuesSection = displayedIssues.length
-    ? sectionTitle(`Issues (${displayedIssues.length} of ${allIssues.length} Shown)`) +
+  const aiIssuesSection = displayedAiIssues.length
+    ? sectionTitle(`Issues (${displayedAiIssues.length} of ${aiOnlyIssues.length} Shown)`) +
       aiUpgradeNote +
-      displayedIssues.map((issue: any) => card(`
+      displayedAiIssues.map((issue: any) => card(`
         <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:8px;">
           <div style="width:32px;height:32px;border-radius:50%;background:${severityBg(issue.severity)};border:2px solid ${severityColor(issue.severity)};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${severityColor(issue.severity)};flex-shrink:0;">${issue.severity === 'critical' ? 'CRIT' : issue.severity === 'warning' ? 'WARN' : 'INFO'}</div>
           <div style="flex:1;">
@@ -510,7 +511,7 @@ export function generateReportHtml(url: string, result: ScanResult | NormalizedS
 
   const remediationItems = [
     ...displayedFailedChecks.map(c => ({ text: `Fix: ${esc(c.name)} — ${esc(c.recommendation || 'See recommendation above')}`, done: false })),
-    ...(displayedIssues.filter((i: any) => Boolean(i?.fix)).map((i: any) => ({ text: `AI Fix: ${esc(i.title)} — ${esc(i.fix)}`, done: false }))),
+    ...(displayedAiIssues.filter((i: any) => Boolean(i?.fix)).map((i: any) => ({ text: `AI Fix: ${esc(i.title)} — ${esc(i.fix)}`, done: false }))),
   ];
 
   const remediationSection = fullReport
@@ -591,3 +592,5 @@ export function generateReportHtml(url: string, result: ScanResult | NormalizedS
 export function generateReportHTML(url: string, result: ScanResult | NormalizedScanResultV2, fullReport = true, branding?: Branding): string {
   return generateReportHtml(url, result as any, fullReport, branding);
 }
+
+

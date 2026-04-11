@@ -580,20 +580,93 @@ function extractAiText(response: any): string {
   return typeof content === 'string' ? content : JSON.stringify(content);
 }
 
+function stripHtmlToText(input: string | null | undefined): string {
+  if (!input) return '';
+  return input.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function normalizeIssueKey(value: string): string {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildFallbackIssues(ruleBasedChecks: any[]): AiAnalysisResult['issues'] {
+  return (Array.isArray(ruleBasedChecks) ? ruleBasedChecks : [])
+    .filter((c) => c?.passed === false)
+    .slice(0, 8)
+    .map((c) => ({
+      title: String(c?.name || 'Failed compliance check'),
+      description: String(c?.detail || 'A GDPR-related automated check failed.'),
+      severity: (String(c?.severity || 'warning').toLowerCase() === 'critical' ? 'critical' : 'warning') as 'critical' | 'warning' | 'info',
+      fix: String(c?.recommendation || 'Review this control and implement the required GDPR safeguard.'),
+    }));
+}
+
+function dedupeAndFilterAiIssues(aiIssues: any[], ruleBasedChecks: any[]): AiAnalysisResult['issues'] {
+  const failedRuleNames = new Set(
+    (Array.isArray(ruleBasedChecks) ? ruleBasedChecks : [])
+      .filter((c) => c?.passed === false)
+      .map((c) => normalizeIssueKey(String(c?.name || '')))
+      .filter(Boolean)
+  );
+
+  const seen = new Set<string>();
+  const out: AiAnalysisResult['issues'] = [];
+
+  for (const issue of Array.isArray(aiIssues) ? aiIssues : []) {
+    const title = String(issue?.title || '').trim();
+    const description = String(issue?.description || '').trim();
+    const fix = String(issue?.fix || '').trim();
+    const severityRaw = String(issue?.severity || 'warning').toLowerCase();
+    const severity: 'critical' | 'warning' | 'info' =
+      severityRaw === 'critical' || severityRaw === 'high'
+        ? 'critical'
+        : severityRaw === 'warning' || severityRaw === 'medium'
+          ? 'warning'
+          : 'info';
+
+    if (!title || !description) continue;
+
+    const normalizedTitle = normalizeIssueKey(title);
+    if (failedRuleNames.has(normalizedTitle)) continue;
+
+    const dedupeKey = `${normalizedTitle}::${normalizeIssueKey(description).slice(0, 120)}`;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+
+    out.push({ title, description, severity, fix });
+  }
+
+  return out;
+}
+
 async function analyzeWithWorkersAI(crawlResult: any, ruleBasedChecks: any[], ai: Ai): Promise<AiAnalysisResult> {
+  const privacyPolicyExcerpt = stripHtmlToText(crawlResult.privacyPolicyHtml).slice(0, 5000);
   const truncated = {
     ...crawlResult,
-    html: crawlResult.html ? crawlResult.html.substring(0, 1500) + '...[truncated]' : '',
+    html: crawlResult.html ? crawlResult.html.substring(0, 8000) + '...[truncated]' : '',
+    privacyPolicyHtml: privacyPolicyExcerpt || null,
+    trackingScripts: Array.isArray(crawlResult.trackingScripts) ? crawlResult.trackingScripts.slice(0, 25) : [],
+    thirdPartyEmbeds: Array.isArray(crawlResult.thirdPartyEmbeds) ? crawlResult.thirdPartyEmbeds.slice(0, 25) : [],
     screenshots: [],
   };
 
-  const prompt = `You are a GDPR compliance expert. Analyze this website scan data and provide a structured GDPR compliance assessment.
+  const prompt = `You are a senior GDPR compliance auditor. Analyze this website scan data and provide a deep, concrete assessment.
 
 SCAN DATA:
 ${JSON.stringify(truncated, null, 2)}
 
 RULE-BASED CHECKS ALREADY PERFORMED:
 ${JSON.stringify(ruleBasedChecks, null, 2)}
+
+IMPORTANT:
+- Do NOT repeat rule-based failed checks as AI issues.
+- AI issues must be ADDITIONAL findings that go beyond the listed rule checks.
+- Prefer specific, evidence-based findings tied to GDPR duties (consent validity, transparency, user rights, data retention, processors/transfers, security by design).
+- Provide at least 4 issues when genuine risks are visible; otherwise return fewer with clear justification in summary.
 
 Return a JSON object with this exact structure:
 {
@@ -605,10 +678,11 @@ Return a JSON object with this exact structure:
 }`;
 
   const fallbackScore = heuristicScoreFromFindings(ruleBasedChecks);
+  const fallbackIssues = buildFallbackIssues(ruleBasedChecks);
   const fallbackResult: AiAnalysisResult = {
-    summary: 'AI analysis unavailable. Showing rule-based score only.',
+    summary: 'AI analysis unavailable. Showing enriched rule-based fallback findings.',
     riskLevel: riskFromScore(fallbackScore),
-    issues: [],
+    issues: fallbackIssues,
     positives: [],
     gdprScore: fallbackScore,
   };
@@ -634,9 +708,11 @@ Return a JSON object with this exact structure:
       const parsed = JSON.parse(content) as AiAnalysisResult;
       if (parsed.gdprScore === undefined || !parsed.issues) throw new Error('Invalid AI response shape');
 
-      const computedScore = heuristicScoreFromFindings(ruleBasedChecks, parsed.issues || []);
+      const filteredIssues = dedupeAndFilterAiIssues(parsed.issues || [], ruleBasedChecks);
+      const computedScore = heuristicScoreFromFindings(ruleBasedChecks, filteredIssues || []);
       return {
         ...parsed,
+        issues: filteredIssues,
         gdprScore: computedScore,
         riskLevel: riskFromScore(computedScore),
       };
@@ -689,3 +765,6 @@ async function sendReportEmail(env: Env, email: string, url: string, result: any
     console.error('[Worker] Failed to send report email:', err);
   }
 }
+
+
+

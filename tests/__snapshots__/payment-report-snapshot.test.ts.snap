@@ -42,7 +42,7 @@ exports[`generateReportHtml — high-risk / low score > matches saved snapshot f
       <div style="display:flex;gap:40px;font-size:13px;opacity:0.7;">
         <div><div style="font-size:11px;opacity:0.6;margin-bottom:4px;">DATE</div>31 March 2026</div>
         <div><div style="font-size:11px;opacity:0.6;margin-bottom:4px;">AUTOMATED CHECKS</div>2 passed / 1 failed</div>
-        <div><div style="font-size:11px;opacity:0.6;margin-bottom:4px;">AI DETECTED ISSUES</div>4 findings</div>
+        <div><div style="font-size:11px;opacity:0.6;margin-bottom:4px;">AI DETECTED ISSUES</div>3 findings</div>
       </div>
   </div>
   </div>
@@ -68,15 +68,8 @@ exports[`generateReportHtml — high-risk / low score > matches saved snapshot f
                 </div>
           </div>
           <div>
-            <h3 style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;font-weight:600;color:#1e293b;margin:16px 0 8px;">Top AI Findings (4)</h3>
-            <div style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;background:#fffbeb;">
-                  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
-                    <div style="font-size:13px;font-weight:700;color:#1e293b;">Privacy Policy</div>
-                    <div style="font-size:10px;font-weight:800;letter-spacing:1px;color:#d97706;">WARNING</div>
-                  </div>
-                  <div style="font-size:12px;color:#64748b;line-height:1.5;margin-top:4px;">No privacy policy found</div>
-                  <div style="margin-top:8px;font-size:12px;color:#166534;"><strong>Fix:</strong> Add a privacy policy page</div>
-                </div><div style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;background:#fef2f2;">
+            <h3 style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;font-weight:600;color:#1e293b;margin:16px 0 8px;">Top AI Findings (3)</h3>
+            <div style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;background:#fef2f2;">
                   <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
                     <div style="font-size:13px;font-weight:700;color:#1e293b;">No SSL</div>
                     <div style="font-size:10px;font-weight:800;letter-spacing:1px;color:#dc2626;">CRITICAL</div>
@@ -105,7 +98,7 @@ exports[`generateReportHtml — high-risk / low score > matches saved snapshot f
     <h3 style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;font-weight:600;color:#1e293b;margin:16px 0 8px;">Executive Summary</h3>
     <p style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#64748b;line-height:1.6;margin:0 0 12px;">This automated GDPR compliance scan was conducted on <strong>https://example.com</strong> on 31 March 2026. The scan uses a combination of rule-based automated checks and AI-powered analysis to identify potential GDPR compliance gaps.</p>
     <p style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#64748b;line-height:1.6;margin:0 0 12px;">The overall compliance score is <strong style="color:#dc2626">20/100</strong>, classified as <strong>HIGH RISK</strong>.</p>
-    <p style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#64748b;line-height:1.6;margin:0 0 12px;">The automated rule engine performed 3 checks, of which <strong style="color:#16a34a">2 passed</strong> and <strong style="color:#dc2626">1 failed</strong>. The AI analysis identified <strong>4 additional findings</strong>, including <strong>2 critical</strong>.</p>
+    <p style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#64748b;line-height:1.6;margin:0 0 12px;">The automated rule engine performed 3 checks, of which <strong style="color:#16a34a">2 passed</strong> and <strong style="color:#dc2626">1 failed</strong>. The AI analysis identified <strong>3 additional findings</strong> beyond rule-based checks, including <strong>2 critical</strong>.</p>
     <p style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#64748b;line-height:1.6;margin:0 0 12px;"><strong>AI Assessment:</strong> This website has basic GDPR compliance issues that should be addressed.</p>
     
   </div>
@@ -158,20 +151,9 @@ exports[`generateReportHtml — high-risk / low score > matches saved snapshot f
   <div style="margin:36px 0 16px;">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
       <div style="width:4px;height:20px;background:#2563eb;border-radius:2px;"></div>
-      <h2 style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:18px;font-weight:700;color:#1e293b;margin:0;">Issues (4 of 4 Shown)</h2>
+      <h2 style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:18px;font-weight:700;color:#1e293b;margin:0;">Issues (3 of 3 Shown)</h2>
     </div>
-  </div><div style="background:#fffbeb;border:1px solid #d97706;border-radius:12px;padding:20px;margin-bottom:20px;">
-        <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:8px;">
-          <div style="width:32px;height:32px;border-radius:50%;background:#fffbeb;border:2px solid #d97706;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#d97706;flex-shrink:0;">WARN</div>
-          <div style="flex:1;">
-            <div style="font-size:14px;font-weight:600;color:#1e293b;margin-bottom:6px;">Privacy Policy</div>
-            <div style="font-size:13px;color:#64748b;margin-bottom:10px;line-height:1.5;">No privacy policy found</div>
-            <div style="background:#f8fafc;border-radius:6px;padding:8px 10px;font-size:12px;color:#475569;font-family:monospace;margin-bottom:10px;word-break:break-all;">Evidence: {&quot;trackingScripts&quot;:[]}</div>
-            <div style="background:#f0fdf4;border-left:3px solid #16a34a;padding:10px 12px;border-radius:0 6px 6px 0;font-size:13px;color:#166534;"><strong><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px"><circle cx="12" cy="12" r="11" fill="#16a34a"/><path d="M7 12.5l3.5 3.5 6.5-7" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>Recommended Fix:</strong><br>Add a privacy policy page</div>
-            
-          </div>
-        </div>
-      </div><div style="background:#fef2f2;border:1px solid #dc2626;border-radius:12px;padding:20px;margin-bottom:20px;">
+  </div><div style="background:#fef2f2;border:1px solid #dc2626;border-radius:12px;padding:20px;margin-bottom:20px;">
         <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:8px;">
           <div style="width:32px;height:32px;border-radius:50%;background:#fef2f2;border:2px solid #dc2626;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#dc2626;flex-shrink:0;">CRIT</div>
           <div style="flex:1;">
@@ -317,7 +299,7 @@ exports[`generateReportHtml — high-risk / low score > matches saved snapshot f
     </div>
   </div><div style="background:#fffbeb;border:1px solid #d97706;border-radius:12px;padding:20px;margin-bottom:20px;">
         <p style="margin:0 0 16px;font-size:13px;color:#64748b;">Use this checklist to address the findings in priority order:</p>
-        <div style="margin:4px 0;color:#64748b;">☐ Fix: Privacy Policy — Add a privacy policy page</div><div style="margin:4px 0;color:#64748b;">☐ AI Fix: Privacy Policy — Add a privacy policy page</div><div style="margin:4px 0;color:#64748b;">☐ AI Fix: No SSL — Install an SSL certificate.</div><div style="margin:4px 0;color:#64748b;">☐ AI Fix: Missing Privacy Policy — Add a privacy policy page.</div><div style="margin:4px 0;color:#64748b;">☐ AI Fix: Tracking scripts found — Review and minimize tracking scripts.</div>
+        <div style="margin:4px 0;color:#64748b;">☐ Fix: Privacy Policy — Add a privacy policy page</div><div style="margin:4px 0;color:#64748b;">☐ AI Fix: No SSL — Install an SSL certificate.</div><div style="margin:4px 0;color:#64748b;">☐ AI Fix: Missing Privacy Policy — Add a privacy policy page.</div><div style="margin:4px 0;color:#64748b;">☐ AI Fix: Tracking scripts found — Review and minimize tracking scripts.</div>
       </div>
   <div class="page-break"></div>
   <div style="margin:36px 0 16px;">
@@ -436,7 +418,7 @@ exports[`generateReportHtml — standard medium-risk report > matches saved snap
       <div style="display:flex;gap:40px;font-size:13px;opacity:0.7;">
         <div><div style="font-size:11px;opacity:0.6;margin-bottom:4px;">DATE</div>31 March 2026</div>
         <div><div style="font-size:11px;opacity:0.6;margin-bottom:4px;">AUTOMATED CHECKS</div>2 passed / 1 failed</div>
-        <div><div style="font-size:11px;opacity:0.6;margin-bottom:4px;">AI DETECTED ISSUES</div>2 findings</div>
+        <div><div style="font-size:11px;opacity:0.6;margin-bottom:4px;">AI DETECTED ISSUES</div>1 findings</div>
       </div>
   </div>
   </div>
@@ -462,15 +444,8 @@ exports[`generateReportHtml — standard medium-risk report > matches saved snap
                 </div>
           </div>
           <div>
-            <h3 style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;font-weight:600;color:#1e293b;margin:16px 0 8px;">Top AI Findings (2)</h3>
+            <h3 style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;font-weight:600;color:#1e293b;margin:16px 0 8px;">Top AI Findings (1)</h3>
             <div style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;background:#fffbeb;">
-                  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
-                    <div style="font-size:13px;font-weight:700;color:#1e293b;">Privacy Policy</div>
-                    <div style="font-size:10px;font-weight:800;letter-spacing:1px;color:#d97706;">WARNING</div>
-                  </div>
-                  <div style="font-size:12px;color:#64748b;line-height:1.5;margin-top:4px;">No privacy policy found</div>
-                  <div style="margin-top:8px;font-size:12px;color:#166534;"><strong>Fix:</strong> Add a privacy policy page</div>
-                </div><div style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;background:#fffbeb;">
                   <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
                     <div style="font-size:13px;font-weight:700;color:#1e293b;">Missing Privacy Policy</div>
                     <div style="font-size:10px;font-weight:800;letter-spacing:1px;color:#d97706;">WARNING</div>
@@ -485,7 +460,7 @@ exports[`generateReportHtml — standard medium-risk report > matches saved snap
     <h3 style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;font-weight:600;color:#1e293b;margin:16px 0 8px;">Executive Summary</h3>
     <p style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#64748b;line-height:1.6;margin:0 0 12px;">This automated GDPR compliance scan was conducted on <strong>https://example.com</strong> on 31 March 2026. The scan uses a combination of rule-based automated checks and AI-powered analysis to identify potential GDPR compliance gaps.</p>
     <p style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#64748b;line-height:1.6;margin:0 0 12px;">The overall compliance score is <strong style="color:#d97706">65/100</strong>, classified as <strong>MEDIUM RISK</strong>.</p>
-    <p style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#64748b;line-height:1.6;margin:0 0 12px;">The automated rule engine performed 3 checks, of which <strong style="color:#16a34a">2 passed</strong> and <strong style="color:#dc2626">1 failed</strong>. The AI analysis identified <strong>2 additional findings</strong>.</p>
+    <p style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#64748b;line-height:1.6;margin:0 0 12px;">The automated rule engine performed 3 checks, of which <strong style="color:#16a34a">2 passed</strong> and <strong style="color:#dc2626">1 failed</strong>. The AI analysis identified <strong>1 additional findings</strong> beyond rule-based checks.</p>
     <p style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#64748b;line-height:1.6;margin:0 0 12px;"><strong>AI Assessment:</strong> This website has basic GDPR compliance issues that should be addressed.</p>
     
   </div>
@@ -538,20 +513,9 @@ exports[`generateReportHtml — standard medium-risk report > matches saved snap
   <div style="margin:36px 0 16px;">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
       <div style="width:4px;height:20px;background:#2563eb;border-radius:2px;"></div>
-      <h2 style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:18px;font-weight:700;color:#1e293b;margin:0;">Issues (2 of 2 Shown)</h2>
+      <h2 style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:18px;font-weight:700;color:#1e293b;margin:0;">Issues (1 of 1 Shown)</h2>
     </div>
   </div><div style="background:#fffbeb;border:1px solid #d97706;border-radius:12px;padding:20px;margin-bottom:20px;">
-        <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:8px;">
-          <div style="width:32px;height:32px;border-radius:50%;background:#fffbeb;border:2px solid #d97706;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#d97706;flex-shrink:0;">WARN</div>
-          <div style="flex:1;">
-            <div style="font-size:14px;font-weight:600;color:#1e293b;margin-bottom:6px;">Privacy Policy</div>
-            <div style="font-size:13px;color:#64748b;margin-bottom:10px;line-height:1.5;">No privacy policy found</div>
-            <div style="background:#f8fafc;border-radius:6px;padding:8px 10px;font-size:12px;color:#475569;font-family:monospace;margin-bottom:10px;word-break:break-all;">Evidence: {&quot;trackingScripts&quot;:[]}</div>
-            <div style="background:#f0fdf4;border-left:3px solid #16a34a;padding:10px 12px;border-radius:0 6px 6px 0;font-size:13px;color:#166534;"><strong><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px"><circle cx="12" cy="12" r="11" fill="#16a34a"/><path d="M7 12.5l3.5 3.5 6.5-7" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>Recommended Fix:</strong><br>Add a privacy policy page</div>
-            
-          </div>
-        </div>
-      </div><div style="background:#fffbeb;border:1px solid #d97706;border-radius:12px;padding:20px;margin-bottom:20px;">
         <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:8px;">
           <div style="width:32px;height:32px;border-radius:50%;background:#fffbeb;border:2px solid #d97706;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#d97706;flex-shrink:0;">WARN</div>
           <div style="flex:1;">
@@ -675,7 +639,7 @@ exports[`generateReportHtml — standard medium-risk report > matches saved snap
     </div>
   </div><div style="background:#fffbeb;border:1px solid #d97706;border-radius:12px;padding:20px;margin-bottom:20px;">
         <p style="margin:0 0 16px;font-size:13px;color:#64748b;">Use this checklist to address the findings in priority order:</p>
-        <div style="margin:4px 0;color:#64748b;">☐ Fix: Privacy Policy — Add a privacy policy page</div><div style="margin:4px 0;color:#64748b;">☐ AI Fix: Privacy Policy — Add a privacy policy page</div><div style="margin:4px 0;color:#64748b;">☐ AI Fix: Missing Privacy Policy — Add a privacy policy page at /privacy or /privacy-policy</div>
+        <div style="margin:4px 0;color:#64748b;">☐ Fix: Privacy Policy — Add a privacy policy page</div><div style="margin:4px 0;color:#64748b;">☐ AI Fix: Missing Privacy Policy — Add a privacy policy page at /privacy or /privacy-policy</div>
       </div>
   <div class="page-break"></div>
   <div style="margin:36px 0 16px;">
