@@ -8,6 +8,7 @@ export default function ReportPage() {
   const searchParams = useSearchParams();
   const scanId = Array.isArray(params.id) ? params.id[0] : params.id;
   const sessionId = searchParams.get('session_id') || '';
+  const token = searchParams.get('token') || '';
 
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [reportHtml, setReportHtml] = useState<string | null>(null);
@@ -36,8 +37,15 @@ export default function ReportPage() {
     if (!scanId) return;
 
     const poll = async () => {
-      const suffix = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : '';
-      const r = await fetch(`/api/report/${encodeURIComponent(scanId)}${suffix}`, { cache: 'no-store' });
+      const qp = new URLSearchParams();
+      if (sessionId) qp.set('session_id', sessionId);
+      if (token) qp.set('token', token);
+      const suffix = qp.toString() ? `?${qp.toString()}` : '';
+
+      const r = await fetch(`/api/report/${encodeURIComponent(scanId)}${suffix}`, {
+        cache: 'no-store',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       if (!r.ok) throw new Error('Report unavailable');
       const data = await r.json() as { reportHtml?: string; fullReport?: boolean };
       if (!data.reportHtml) throw new Error('Missing report html');
@@ -64,7 +72,7 @@ export default function ReportPage() {
     return () => {
       cancelled = true;
     };
-  }, [scanId, sessionId]);
+  }, [scanId, sessionId, token]);
 
   if (status === 'error') {
     return (
@@ -133,3 +141,6 @@ export default function ReportPage() {
     </div>
   );
 }
+
+
+

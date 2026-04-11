@@ -35,7 +35,11 @@ export async function GET(
   const { scan, result } = await getScanResult(db, scanId);
 
   if (result && scan?.status === 'completed') {
-    const token = getBearerToken(request) || request.cookies.get('session_token')?.value || request.cookies.get('session')?.value || null;
+    const token = getBearerToken(request)
+      || request.nextUrl.searchParams.get('token')
+      || request.cookies.get('session_token')?.value
+      || request.cookies.get('session')?.value
+      || null;
     let branding: any = null;
     let full = false;
 
@@ -113,6 +117,7 @@ export async function GET(
 
   return jsonNoStore({ error: 'Scan not yet complete' }, { status: 202 });
 }
+
 
 
 

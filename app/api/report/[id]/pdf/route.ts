@@ -64,7 +64,11 @@ export async function GET(
     return NextResponse.json({ error: 'Scan failed. Please try again.' }, { status: 500 });
   }
 
-  const token = getBearerToken(request) || request.cookies.get('session_token')?.value || request.cookies.get('session')?.value || null;
+  const token = getBearerToken(request)
+    || request.nextUrl.searchParams.get('token')
+    || request.cookies.get('session_token')?.value
+    || request.cookies.get('session')?.value
+    || null;
   let branding: any = null;
 
   if (token) {
@@ -122,5 +126,6 @@ export async function GET(
     return htmlFallbackResponse(html, fileBase);
   }
 }
+
 
 

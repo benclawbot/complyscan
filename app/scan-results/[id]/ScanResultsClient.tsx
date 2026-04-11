@@ -299,7 +299,11 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
 
   const handleDownloadPdf = async () => {
     try {
-      const res = await fetch(`/api/report/${encodeURIComponent(scanId)}/pdf`);
+      const token = new URLSearchParams(window.location.search).get('token') || '';
+      const pdfUrl = `/api/report/${encodeURIComponent(scanId)}/pdf${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+      const res = await fetch(pdfUrl, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       if (res.status === 401) {
         setShowAccountModal(true);
         return;
@@ -312,7 +316,7 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
         alert('Failed to generate PDF.');
         return;
       }
-      window.open(`/api/report/${encodeURIComponent(scanId)}/pdf`, '_blank', 'noopener,noreferrer');
+      window.open(pdfUrl, '_blank', 'noopener,noreferrer');
     } catch {
       alert('Failed to generate PDF.');
     }
@@ -518,6 +522,8 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
     </div>
   );
 }
+
+
 
 
 
