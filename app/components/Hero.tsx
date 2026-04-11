@@ -20,11 +20,14 @@ export function Hero() {
     setLoading(true);
     setError("");
 
+    const form = e.currentTarget as HTMLFormElement;
+    const marketingConsent = (form.elements.namedItem("marketing_consent") as HTMLInputElement | null)?.checked === true;
+
     try {
       const res = await fetch("/api/scan/free", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, email: email || undefined }),
+        body: JSON.stringify({ url, email: email || undefined, marketingConsent }),
       });
 
       const data = await res.json() as { scanId?: string; error?: string; code?: string };
@@ -104,24 +107,39 @@ export function Hero() {
           {/* Left: scan form */}
           <div>
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+              <label htmlFor="scan-url" className="sr-only">Website URL to scan</label>
               <input
+                id="scan-url"
                 type="url"
                 name="url"
+                aria-label="Website URL"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://yourwebsite.com"
                 required
                 className="rounded-xl bg-midnight-light border border-white/15 px-5 py-4 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-accent-blue/60 focus:border-accent-blue/40 transition-all text-base"
               />
+              <label htmlFor="scan-email" className="sr-only">Email address for scan report</label>
               <input
+                id="scan-email"
                 type="email"
                 name="email"
+                aria-label="Email address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your@email.com"
                 required
                 className="rounded-xl bg-midnight-light border border-white/15 px-5 py-4 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-accent-blue/60 focus:border-accent-blue/40 transition-all text-base"
               />
+              <label htmlFor="marketing-consent" className="flex items-start gap-2 text-xs text-white/60">
+                <input
+                  id="marketing-consent"
+                  type="checkbox"
+                  name="marketing_consent"
+                  className="mt-0.5 h-4 w-4 rounded border-white/40 bg-midnight-light"
+                />
+                <span>I agree to receive optional GDPR tips and product updates by email. I can unsubscribe anytime.</span>
+              </label>
               {error && (
                 <p className="text-risk-high text-sm text-left px-1 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-risk-high inline-block" />

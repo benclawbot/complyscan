@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import { getDb, getRuntimeEnv, getStripeSecrets } from '@/lib/env';
+import { buildSubscriptionSuccessUrl } from '@/lib/stripe-success-url';
 
 export async function POST(request: NextRequest) {
   try {
@@ -67,14 +68,8 @@ export async function POST(request: NextRequest) {
     params.append('line_items[0][quantity]', '1');
     if (email) params.append('customer_email', email);
 
-    const successUrl = new URL(`${appUrl}/success`);
-    successUrl.searchParams.set('session_id', '{CHECKOUT_SESSION_ID}');
-    successUrl.searchParams.set('scan_id', scanId);
-    successUrl.searchParams.set('plan', 'monthly');
-    if (websiteUrl) successUrl.searchParams.set('url', websiteUrl);
-    if (email) successUrl.searchParams.set('email', email);
-
-    params.append('success_url', successUrl.toString());
+    const successUrl = buildSubscriptionSuccessUrl(appUrl, scanId, websiteUrl, email);
+    params.append('success_url', successUrl);
     params.append('cancel_url', `${appUrl}/?cancelled=true`);
     params.append('metadata[scanId]', scanId);
     params.append('metadata[url]', websiteUrl || '');
@@ -118,4 +113,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: err?.message || 'Checkout failed' }, { status: 500 });
   }
 }
+
+
+
 

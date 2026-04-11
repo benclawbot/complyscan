@@ -2,6 +2,7 @@ import Link from "next/link";
 
 const footerLinks = [
   { label: "Privacy Policy", href: "/legal/privacy" },
+  { label: "Cookie Policy", href: "/legal/cookie-policy" },
   { label: "Terms of Service", href: "/legal/terms" },
   { label: "Blog", href: "/blog" },
 ];

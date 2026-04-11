@@ -70,12 +70,8 @@ export async function POST(request: NextRequest) {
       path: '/',
     });
 
-    // Trigger nurture sequence for new users (non-blocking)
-    if (isNewUser) {
-      import('@/lib/mailjet').then(({ subscribeToNurture }) => {
-        subscribeToNurture({ email }).catch(() => {});
-      });
-    }
+    // Marketing nurture is only sent with explicit opt-in.
+    // This endpoint does not collect marketing consent, so we skip auto-subscription.
 
     return response;
   } catch (err: any) {

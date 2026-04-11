@@ -215,6 +215,10 @@ mailjet.com/legal/privacy-policy
               We do not use advertising, analytics, or tracking cookies unless you
               explicitly opt in.
             </p>
+            <p>
+              See our dedicated <a href="/legal/cookie-policy" className="text-accent-blue hover:underline">Cookie Policy</a>
+              {" "}for cookie categories, retention periods, and consent withdrawal instructions.
+            </p>
             <ul>
               <li>
                 <strong>Session cookie</strong> — authenticates your account and maintains

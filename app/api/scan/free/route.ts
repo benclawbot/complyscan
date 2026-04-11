@@ -19,7 +19,7 @@ async function getMonthlyScanCount(db: ReturnType<typeof getDb>, email: string):
 }
 
 export async function POST(request: NextRequest) {
-  const { url, email } = await request.json() as { url?: string; email?: string };
+  const { url, email, marketingConsent } = await request.json() as { url?: string; email?: string; marketingConsent?: boolean };
 
   if (!url) {
     return NextResponse.json({ error: 'URL is required' }, { status: 400 });
@@ -126,9 +126,11 @@ export async function POST(request: NextRequest) {
 
     if (env?.SCAN_QUEUE) {
       await sendScanJob({ scanId, url, email, trigger: 'free' }, env);
-      import('@/lib/mailjet').then(({ subscribeToNurture }) => {
-        subscribeToNurture({ email, scanUrl: url }).catch(() => {});
-      });
+      if (marketingConsent) {
+        import('@/lib/mailjet').then(({ subscribeToNurture }) => {
+          subscribeToNurture({ email, scanUrl: url }).catch(() => {});
+        });
+      }
       return NextResponse.json({ scanId, status: 'queued' });
     }
 

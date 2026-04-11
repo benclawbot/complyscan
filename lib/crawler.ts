@@ -125,9 +125,9 @@ function analysePrivacyPolicyHtml(html: string): Partial<CrawlResult> {
 
   // Cookie policy page
   const cookiePagePatterns = ['cookie policy', 'cookie-policy', 'cookies policy', 'politique de cookies', 'cookie-hinweis'];
-  const hasCookiePolicyPage = cookiePagePatterns.some(p =>
-    text.includes(p) && html.match(/<(?:h[1-6]|p|div)[^>]+(?:class|id)=["'][^"']*(?:cookie|cookie-policy)[^"']*["']/i)
-  );
+  const hasCookiePolicyPage =
+    cookiePagePatterns.some((p) => text.includes(p)) ||
+    /href=["'][^"']*(cookie-policy|cookie_policy|cookies-policy)[^"']*["']/i.test(html);
 
   // Third-party embeds in the main page HTML (not privacy policy)
   // Data processors to check for
