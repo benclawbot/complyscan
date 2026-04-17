@@ -6,6 +6,7 @@ node_modules/
 out/
 dist/
 .open-next/
+.wrangler/
 
 # Environment — NEVER commit actual keys
 .env
