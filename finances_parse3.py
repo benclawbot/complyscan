@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import numpy as np
 from datetime import datetime
+from pathlib import Path
 
 # ====== VERIFIED MONTHLY DATA ======
 MONTH_ORDER = ["Apr 2025","May 2025","Jun 2025","Jul 2025","Aug 2025","Sep 2025",
@@ -31,23 +32,35 @@ MONTHLY = {
     "Mar 2026":  {"income": 15746.97, "expenses": 16078.65, "balance": 9088.79},
 }
 
+STATEMENTS_DIR = Path(
+    os.getenv(
+        "POSTFINANCE_STATEMENTS_DIR",
+        str(Path.home() / "Documents" / "postfinance-statements"),
+    )
+)
+
+
+def _statement_file(name: str) -> str:
+    return str(STATEMENTS_DIR / name)
+
+
 PDFS = {
-    "Apr 2025":  "/home/thomas/.openclaw/media/inbound/REP_P_CH1809000000127269836_1105749371_0_2025050104371092---94f94873-d7d8-47d1-a6d3-4d7498798f4d.pdf",
-    "May 2025":  "/home/thomas/.openclaw/media/inbound/REP_P_CH1809000000127269836_1105749371_0_2025060102552617---f4eb76e9-5d68-48b7-8f03-ea058ac61483.pdf",
-    "Jun 2025":  "/home/thomas/.openclaw/media/inbound/REP_P_CH1809000000127269836_1105749371_0_2025070104041121---a4500456-f10e-4456-b9d8-b3d64a275599.pdf",
-    "Jul 2025":  "/home/thomas/.openclaw/media/inbound/REP_P_CH1809000000127269836_1105749371_0_2025080104591559---740b5642-47dd-4242-bffb-cc56b0cf5984.pdf",
-    "Aug 2025":  "/home/thomas/.openclaw/media/inbound/REP_P_CH1809000000127269836_1105749371_0_2025090104071916---04e284a5-a4f7-49dd-8731-657e880da266.pdf",
-    "Sep 2025":  "/home/thomas/.openclaw/media/inbound/REP_P_CH1809000000127269836_1105749371_0_2025090104071916---f188ab19-d081-48d1-b4d5-eb8cddc593e6.pdf",
-    "Oct 2025":  "/home/thomas/.openclaw/media/inbound/REP_P_CH1809000000127269836_1105749371_0_2025100103502664---45186a93-c682-4e33-957c-6320d6561b7d.pdf",
-    "Nov 2025":  "/home/thomas/.openclaw/media/inbound/REP_P_CH1809000000127269836_1105749371_0-2025110103321781---958c36b0-b637-4de4-88f6-de916aa45820.pdf",
-    "Dec 2025":  "/home/thomas/.openclaw/media/inbound/REP_P_CH1809000000127269836_1105749371_0_2025120105161218---14ef6e67-77e5-4cce-a2bb-73a98d15f11d.pdf",
-    "Jan 2026":  "/home/thomas/.openclaw/media/inbound/REP_P_CH1809000000127269836_1105749371_0_2026010113212202---675ef013-fff2-4cef-9c3e-cb442ae6edc2.pdf",
-    "Feb 2026":  "/home/thomas/.openclaw/media/inbound/REP_P_CH1809000000127269836_1105749371_0_2026020105242707---d82e9b0a-9f0a-4c1f-8262-fbc9858fec7a.pdf",
-    "Mar 2026":  "/home/thomas/.openclaw/media/inbound/REP_P_CH1809000000127269836_1138321291_0_2026040111371289---11b592e2-bc68-4851-ad5d-ed9237b3f017.pdf",
+    "Apr 2025":  _statement_file("REP_P_CH1809000000127269836_1105749371_0_2025050104371092---94f94873-d7d8-47d1-a6d3-4d7498798f4d.pdf"),
+    "May 2025":  _statement_file("REP_P_CH1809000000127269836_1105749371_0_2025060102552617---f4eb76e9-5d68-48b7-8f03-ea058ac61483.pdf"),
+    "Jun 2025":  _statement_file("REP_P_CH1809000000127269836_1105749371_0_2025070104041121---a4500456-f10e-4456-b9d8-b3d64a275599.pdf"),
+    "Jul 2025":  _statement_file("REP_P_CH1809000000127269836_1105749371_0_2025080104591559---740b5642-47dd-4242-bffb-cc56b0cf5984.pdf"),
+    "Aug 2025":  _statement_file("REP_P_CH1809000000127269836_1105749371_0_2025090104071916---04e284a5-a4f7-49dd-8731-657e880da266.pdf"),
+    "Sep 2025":  _statement_file("REP_P_CH1809000000127269836_1105749371_0_2025090104071916---f188ab19-d081-48d1-b4d5-eb8cddc593e6.pdf"),
+    "Oct 2025":  _statement_file("REP_P_CH1809000000127269836_1105749371_0_2025100103502664---45186a93-c682-4e33-957c-6320d6561b7d.pdf"),
+    "Nov 2025":  _statement_file("REP_P_CH1809000000127269836_1105749371_0-2025110103321781---958c36b0-b637-4de4-88f6-de916aa45820.pdf"),
+    "Dec 2025":  _statement_file("REP_P_CH1809000000127269836_1105749371_0_2025120105161218---14ef6e67-77e5-4cce-a2bb-73a98d15f11d.pdf"),
+    "Jan 2026":  _statement_file("REP_P_CH1809000000127269836_1105749371_0_2026010113212202---675ef013-fff2-4cef-9c3e-cb442ae6edc2.pdf"),
+    "Feb 2026":  _statement_file("REP_P_CH1809000000127269836_1105749371_0_2026020105242707---d82e9b0a-9f0a-4c1f-8262-fbc9858fec7a.pdf"),
+    "Mar 2026":  _statement_file("REP_P_CH1809000000127269836_1138321291_0_2026040111371289---11b592e2-bc68-4851-ad5d-ed9237b3f017.pdf"),
 }
 
 # Fix Nov filename (was missing underscore)
-PDFS["Nov 2025"] = "/home/thomas/.openclaw/media/inbound/REP_P_CH1809000000127269836_1105749371_0_2025110103321781---958c36b0-b637-4de4-88f6-de916aa45820.pdf"
+PDFS["Nov 2025"] = _statement_file("REP_P_CH1809000000127269836_1105749371_0_2025110103321781---958c36b0-b637-4de4-88f6-de916aa45820.pdf")
 
 def parse_pdf(path):
     r = subprocess.run(['pdftotext', '-layout', path, '-'], capture_output=True, text=True, errors='replace')
