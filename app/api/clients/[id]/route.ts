@@ -1,29 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, parseResultJson } from '@/lib/env';
-import { getBearerToken, verifySubscriberToken } from '@/lib/auth';
-
-async function requireAgencySubscriber(request: NextRequest) {
-  const token = getBearerToken(request);
-  const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
-  const db = getDb(env);
-  if (!token) return { db, subscriber: null };
-  const subscriber = await verifySubscriberToken(db, token, 'agency');
-  return { db, subscriber };
-}
+import { requireAgencySession } from '@/lib/auth';
+import { hasValidCsrf, csrfErrorResponse } from '@/lib/csrf';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { db, subscriber } = await requireAgencySubscriber(request);
+  const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
+  const db = getDb(env);
+  const auth = await requireAgencySession(request as any, db);
   const { id: clientId } = await params;
 
-  if (!subscriber) {
-    return NextResponse.json({ error: 'Invalid token or not an agency subscriber' }, { status: 401 });
+  if (!auth) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const client = await db.prepare(`
     SELECT id, name, url, created_at
     FROM agency_clients
     WHERE id = ? AND agency_subscriber_id = ?
-  `).get(clientId, subscriber.subscriber_id) as any;
+  `).get(clientId, auth.subscriber.id) as any;
 
   if (!client) {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });
@@ -35,7 +29,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     WHERE subscriber_id = ? AND url = ?
     ORDER BY created_at DESC
     LIMIT 50
-  `).all(subscriber.subscriber_id, client.url) as any[];
+  `).all(auth.subscriber.id, client.url) as any[];
 
   const scansWithStatus = await Promise.all(scans.map(async (scan) => {
     const parsed = scan.result_json ? await parseResultJson(scan.result_json) : null;
@@ -62,17 +56,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { db, subscriber } = await requireAgencySubscriber(request);
+  if (!hasValidCsrf(request as any)) {
+    return csrfErrorResponse();
+  }
+
+  const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
+  const db = getDb(env);
+  const auth = await requireAgencySession(request as any, db);
   const { id: clientId } = await params;
 
-  if (!subscriber) {
-    return NextResponse.json({ error: 'Invalid token or not an agency subscriber' }, { status: 401 });
+  if (!auth) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const client = await db.prepare(`
     SELECT id FROM agency_clients
     WHERE id = ? AND agency_subscriber_id = ?
-  `).get(clientId, subscriber.subscriber_id);
+  `).get(clientId, auth.subscriber.id);
 
   if (!client) {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });

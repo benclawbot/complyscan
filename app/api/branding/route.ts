@@ -1,66 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb, getRuntimeEnv } from '@/lib/env';
-import { getBearerToken, verifySubscriberToken, getUserSession, touchSubscriberToken, touchUserSession } from '@/lib/auth';
+import { getDb } from '@/lib/env';
 import { getBranding, upsertBranding } from '@/lib/branding';
+import { requireUserSession, getActiveSubscriberForUser } from '@/lib/auth';
+import { hasValidCsrf, csrfErrorResponse } from '@/lib/csrf';
 
-function badRequest(message: string) {
-  return NextResponse.json({ error: message }, { status: 400 });
+async function resolveOwner(request: NextRequest) {
+  const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
+  const db = getDb(env);
+  const auth = await requireUserSession(request as any, db);
+  if (!auth) return { db, owner: null };
+
+  const sub = await getActiveSubscriberForUser(db, auth.session.user_id, 'agency');
+  if (sub) {
+    return { db, owner: { type: 'subscriber' as const, id: sub.id } };
+  }
+
+  return { db, owner: { type: 'user' as const, id: auth.session.user_id } };
 }
 
 export async function GET(request: NextRequest) {
-  const token = getBearerToken(request) || request.cookies.get('session_token')?.value || request.cookies.get('session')?.value;
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const env: any = getRuntimeEnv((request as any).env ?? (globalThis as any).__env ?? undefined);
-  const db = getDb(env);
-
-  const sub = await verifySubscriberToken(db, token);
-  if (sub) {
-    await touchSubscriberToken(db, token);
-    const branding = await getBranding(db, { type: 'subscriber', id: sub.subscriber_id });
-    return NextResponse.json({ branding });
+  const { db, owner } = await resolveOwner(request);
+  if (!owner) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const session = await getUserSession(db, token);
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  await touchUserSession(db, token);
-
-  const branding = await getBranding(db, { type: 'user', id: session.user_id });
-  return NextResponse.json({ branding });
+  const branding = await getBranding(db, owner);
+  return NextResponse.json({ branding: branding || null });
 }
 
 export async function POST(request: NextRequest) {
-  const token = getBearerToken(request) || request.cookies.get('session_token')?.value || request.cookies.get('session')?.value;
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const body = await request.json().catch(() => null) as any;
-  if (!body || typeof body !== 'object') return badRequest('Invalid JSON');
-
-  const agencyName = typeof body.agencyName === 'string' ? body.agencyName.trim().slice(0, 80) : null;
-  const logoUrl = typeof body.logoUrl === 'string' ? body.logoUrl.trim().slice(0, 500) : null;
-  const logoDataUrl = typeof body.logoDataUrl === 'string' ? body.logoDataUrl.trim().slice(0, 2_000_000) : null;
-
-  if (logoDataUrl && !logoDataUrl.startsWith('data:image/')) {
-    return badRequest('logoDataUrl must be a data:image/* URL');
+  if (!hasValidCsrf(request as any)) {
+    return csrfErrorResponse();
   }
 
-  const env: any = getRuntimeEnv((request as any).env ?? (globalThis as any).__env ?? undefined);
-  const db = getDb(env);
-
-  const sub = await verifySubscriberToken(db, token);
-  if (sub) {
-    await touchSubscriberToken(db, token);
-    await upsertBranding(db, { type: 'subscriber', id: sub.subscriber_id }, { agencyName, logoUrl, logoDataUrl });
-    return NextResponse.json({ ok: true });
+  const { db, owner } = await resolveOwner(request);
+  if (!owner) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const session = await getUserSession(db, token);
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  await touchUserSession(db, token);
+  const body = await request.json() as { agencyName?: string; logoUrl?: string; logoDataUrl?: string };
+  const agencyName = (body.agencyName || '').trim();
+  const logoUrl = (body.logoUrl || '').trim();
+  const logoDataUrl = (body.logoDataUrl || '').trim();
 
-  await upsertBranding(db, { type: 'user', id: session.user_id }, { agencyName, logoUrl, logoDataUrl });
+  if (logoDataUrl && !/^data:image\//.test(logoDataUrl)) {
+    return NextResponse.json({ error: 'Invalid logo data format' }, { status: 400 });
+  }
+
+  await upsertBranding(db, owner, {
+    agencyName,
+    logoUrl,
+    logoDataUrl,
+  });
+
   return NextResponse.json({ ok: true });
 }
-
-
-

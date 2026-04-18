@@ -1,25 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, getRuntimeEnv, sendScanJob } from '@/lib/env';
 import { v4 as uuidv4 } from 'uuid';
-
-async function verifySession(request: NextRequest, db: ReturnType<typeof getDb>) {
-  const token = request.headers.get('authorization')?.replace('Bearer ', '') || request.cookies.get('session')?.value;
-  if (!token) return null;
-
-  const session = await db.prepare(`
-    SELECT s.user_id, u.email FROM sessions s
-    JOIN users u ON s.user_id = u.id
-    WHERE s.token=?
-  `).get(token) as any;
-
-  return session || null;
-}
+import { requireUserSession } from '@/lib/auth';
+import { hasValidCsrf, csrfErrorResponse } from '@/lib/csrf';
 
 export async function GET(request: NextRequest, { params: _params }: { params: Promise<{ id: string }> }, env: any) {
   env = getRuntimeEnv(env);
   const db = getDb(env);
-  const session = await verifySession(request, db);
-  if (!session) {
+  const auth = await requireUserSession(request as any, db);
+  if (!auth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -29,16 +18,20 @@ export async function GET(request: NextRequest, { params: _params }: { params: P
     WHERE user_id = ?
     ORDER BY created_at DESC
     LIMIT 50
-  `).all(session.user_id);
+  `).all(auth.session.user_id);
 
   return NextResponse.json({ scans });
 }
 
 export async function POST(request: NextRequest, { params: _params }: { params: Promise<{ id: string }> }, env: any) {
+  if (!hasValidCsrf(request as any)) {
+    return csrfErrorResponse();
+  }
+
   env = getRuntimeEnv(env);
   const db = getDb(env);
-  const session = await verifySession(request, db);
-  if (!session) {
+  const auth = await requireUserSession(request as any, db);
+  if (!auth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -52,17 +45,14 @@ export async function POST(request: NextRequest, { params: _params }: { params: 
   await db.prepare(`
     INSERT INTO scans (id, url, status, user_id)
     VALUES (?, ?, 'pending', ?)
-  `).run(scanId, url, session.user_id);
+  `).run(scanId, url, auth.session.user_id);
 
   if (!env?.SCAN_QUEUE) {
     await db.prepare(`UPDATE scans SET status = 'failed' WHERE id = ?`).run(scanId);
     return NextResponse.json({ error: 'Scan queue is not configured' }, { status: 500 });
   }
 
-  await sendScanJob({ scanId, url, email: session.email, trigger: 'free' }, env);
+  await sendScanJob({ scanId, url, email: auth.session.email, trigger: 'free' }, env);
 
   return NextResponse.json({ scanId, status: 'queued' });
 }
-
-
-

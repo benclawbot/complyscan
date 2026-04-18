@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { shouldContinuePollingForSubscriberToken } from './polling';
 
 export default function SuccessClient() {
   const router = useRouter();
@@ -11,52 +10,49 @@ export default function SuccessClient() {
   const plan = searchParams.get('plan');
   const email = searchParams.get('email');
 
-  const [subscriberToken, setSubscriberToken] = useState<string | null>(null);
   const [customerEmail, setCustomerEmail] = useState<string | null>(email);
+  const [statusText, setStatusText] = useState<string>('Finalizing your subscription...');
 
   useEffect(() => {
     if (!sessionId || plan !== 'monthly') return;
 
-    // Poll for the subscriber token — in real Stripe mode the webhook fires asynchronously
     let attempts = 0;
     const queueRetry = () => {
       if (attempts < 80) {
         attempts += 1;
         setTimeout(poll, 1500);
+      } else {
+        setStatusText('Subscription is confirmed. You can continue to your dashboard.');
       }
     };
 
     const poll = () => {
       fetch(`/api/stripe/session?session_id=${encodeURIComponent(sessionId)}`)
         .then(async (res) => {
-          if (!res.ok) return { subscriberToken: null, customerEmail: null };
-          return await res.json() as { subscriberToken?: string; customerEmail?: string };
+          if (!res.ok) return { subscriptionReady: false, customerEmail: null };
+          return await res.json() as { subscriptionReady?: boolean; customerEmail?: string };
         })
         .then((data) => {
-          if (data?.subscriberToken) {
-            setSubscriberToken(data.subscriberToken);
-            document.cookie = `session_token=${encodeURIComponent(data.subscriberToken)}; path=/; SameSite=Lax`;
-            router.replace(`/dashboard?token=${encodeURIComponent(data.subscriberToken)}`);
-            return;
-          }
-
           if (data?.customerEmail) {
             setCustomerEmail(data.customerEmail);
           }
 
-          if (shouldContinuePollingForSubscriberToken(data)) {
-            queueRetry();
+          if (data?.subscriptionReady) {
+            router.replace('/dashboard');
+            return;
           }
+
+          queueRetry();
         })
         .catch(() => {
           queueRetry();
         });
     };
+
     poll();
   }, [sessionId, plan, router]);
 
   if (plan === 'monthly') {
-    const dashboardUrl = subscriberToken ? `/dashboard?token=${encodeURIComponent(subscriberToken)}` : '/dashboard';
     return (
       <div className="min-h-screen bg-midnight flex items-center justify-center px-4">
         <div className="max-w-md w-full text-center">
@@ -68,19 +64,10 @@ export default function SuccessClient() {
           <h1 className="text-2xl font-bold text-white mb-2">Subscription Active!</h1>
           <p className="text-white/60 mb-2">Your agency subscription is confirmed.</p>
           {customerEmail && <p className="text-white/40 text-sm mb-6">{customerEmail}</p>}
-          {subscriberToken ? (
-            <>
-              <p className="text-white/60 text-sm mb-4">Save your dashboard access token:</p>
-              <div className="bg-white/5 border border-white/10 rounded-lg p-3 mb-6 text-left">
-                <code className="text-accent-blue text-xs break-all">{subscriberToken}</code>
-              </div>
-              <a href={dashboardUrl} className="inline-block px-6 py-3 bg-accent-blue text-white rounded-lg font-medium hover:bg-accent-blue/90 transition-all">
-                Go to Dashboard
-              </a>
-            </>
-          ) : (
-            <p className="text-white/40 text-sm mb-6">Preparing your dashboard access…</p>
-          )}
+          <p className="text-white/40 text-sm mb-6">{statusText}</p>
+          <a href="/dashboard" className="inline-block px-6 py-3 bg-accent-blue text-white rounded-lg font-medium hover:bg-accent-blue/90 transition-all">
+            Go to Dashboard
+          </a>
         </div>
       </div>
     );
@@ -101,11 +88,3 @@ export default function SuccessClient() {
     </div>
   );
 }
-
-
-
-
-
-
-
-

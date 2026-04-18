@@ -4,6 +4,7 @@ import { Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { RevealSection } from "./ui/RevealSection";
 import { SampleReportPreview } from "./ui/SampleReportPreview";
+import { csrfFetch } from '@/lib/client-csrf';
 
 const plans = [
   {
@@ -65,13 +66,18 @@ export function Pricing() {
     setLoading(plan);
 
     try {
-      const res = await fetch("/api/stripe/checkout", {
+      const res = await csrfFetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan }),
       });
 
       const data = await res.json() as { url?: string; error?: string };
+
+      if (res.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
 
       if (data.url) {
         window.location.href = data.url;
@@ -88,7 +94,7 @@ export function Pricing() {
   const handleBuyCredits = async (pack: 'credits_3' | 'credits_10') => {
     setLoading(pack);
     try {
-      const res = await fetch('/api/stripe/checkout-credits', {
+      const res = await csrfFetch('/api/stripe/checkout-credits', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pack }),
@@ -248,8 +254,6 @@ export function Pricing() {
     </>
   );
 }
-
-
 
 
 

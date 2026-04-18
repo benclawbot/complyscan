@@ -1,21 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, parseResultJson } from '@/lib/env';
-import { getBearerToken, verifySubscriberToken } from '@/lib/auth';
-
-async function requireAgencySubscriber(request: NextRequest) {
-  const token = getBearerToken(request);
-  const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
-  const db = getDb(env);
-  if (!token) return { db, subscriber: null, token: null };
-  const subscriber = await verifySubscriberToken(db, token, 'agency');
-  return { db, subscriber, token };
-}
+import { requireAgencySession } from '@/lib/auth';
+import { hasValidCsrf, csrfErrorResponse } from '@/lib/csrf';
 
 export async function GET(request: NextRequest) {
-  const { db, subscriber } = await requireAgencySubscriber(request);
-  if (!subscriber) {
-    return NextResponse.json({ error: 'Invalid token or not an agency subscriber' }, { status: 401 });
+  const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
+  const db = getDb(env);
+  const auth = await requireAgencySession(request as any, db);
+  if (!auth) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const clients = await db.prepare(`
@@ -23,7 +17,7 @@ export async function GET(request: NextRequest) {
     FROM agency_clients
     WHERE agency_subscriber_id = ?
     ORDER BY created_at DESC
-  `).all(subscriber.subscriber_id) as any[];
+  `).all(auth.subscriber.id) as any[];
 
   const clientsWithScans = await Promise.all(clients.map(async (client) => {
     const lastScan = await db.prepare(`
@@ -32,7 +26,7 @@ export async function GET(request: NextRequest) {
       WHERE subscriber_id = ? AND url = ?
       ORDER BY created_at DESC
       LIMIT 1
-    `).get(subscriber.subscriber_id, client.url) as any;
+    `).get(auth.subscriber.id, client.url) as any;
 
     let complianceStatus = 'unknown';
     let gdprScore: number | null = null;
@@ -61,9 +55,15 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { db, subscriber } = await requireAgencySubscriber(request);
-  if (!subscriber) {
-    return NextResponse.json({ error: 'Invalid token or not an agency subscriber' }, { status: 401 });
+  if (!hasValidCsrf(request as any)) {
+    return csrfErrorResponse();
+  }
+
+  const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
+  const db = getDb(env);
+  const auth = await requireAgencySession(request as any, db);
+  if (!auth) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
     const existing = await db.prepare(`
       SELECT id FROM agency_clients
       WHERE agency_subscriber_id = ? AND url = ?
-    `).get(subscriber.subscriber_id, url);
+    `).get(auth.subscriber.id, url);
 
     if (existing) {
       return NextResponse.json({ error: 'Client with this URL already exists' }, { status: 409 });
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     await db.prepare(`
       INSERT INTO agency_clients (id, agency_subscriber_id, name, url)
       VALUES (?, ?, ?, ?)
-    `).run(clientId, subscriber.subscriber_id, name, url);
+    `).run(clientId, auth.subscriber.id, name, url);
 
     const client = await db.prepare('SELECT * FROM agency_clients WHERE id = ?').get(clientId);
     return NextResponse.json({ client }, { status: 201 });

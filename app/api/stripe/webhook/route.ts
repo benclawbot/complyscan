@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import crypto from 'crypto';
 import { getDb, getRuntimeEnv, getStripeSecrets } from '@/lib/env';
 import { retrieveSubscription, verifyStripeWebhookSignature } from '@/lib/stripe-api';
 
@@ -73,6 +72,7 @@ export async function POST(request: NextRequest) {
         } else if (session.mode === 'subscription') {
           const customerId = String(session.customer || '');
           const customerEmailValue = session.customer_email ?? '';
+          const userId = String(session.metadata?.userId || '');
 
           let periodEnd: string | null = null;
           let cancelAtPeriodEnd = false;
@@ -84,29 +84,30 @@ export async function POST(request: NextRequest) {
             // ignore
           }
 
-          const existingSub = await db.prepare('SELECT id FROM subscribers WHERE stripe_customer_id = ?').get(customerId) as any;
+          let existingSub: any = null;
+          if (userId) {
+            existingSub = await db.prepare('SELECT id FROM subscribers WHERE user_id = ?').get(userId) as any;
+          }
+          if (!existingSub) {
+            existingSub = await db.prepare('SELECT id FROM subscribers WHERE stripe_customer_id = ?').get(customerId) as any;
+          }
+
           const subscriberId = existingSub?.id || uuidv4();
 
           if (!existingSub) {
             await db.prepare(`
-              INSERT INTO subscribers (id, stripe_customer_id, email, plan, status, current_period_end, cancel_at_period_end, updated_at)
-              VALUES (?, ?, ?, 'agency', 'active', ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-            `).run(subscriberId, customerId, customerEmailValue, periodEnd, cancelAtPeriodEnd ? 1 : 0);
+              INSERT INTO subscribers (id, user_id, stripe_customer_id, email, plan, status, current_period_end, cancel_at_period_end, updated_at)
+              VALUES (?, ?, ?, ?, 'agency', 'active', ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+            `).run(subscriberId, userId || null, customerId, customerEmailValue, periodEnd, cancelAtPeriodEnd ? 1 : 0);
           } else {
             await db.prepare(`
               UPDATE subscribers
-              SET email = ?, plan = 'agency', status = 'active', current_period_end = COALESCE(?, current_period_end),
-                  cancel_at_period_end = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+              SET user_id = COALESCE(?, user_id), email = ?, plan = 'agency', status = 'active',
+                  current_period_end = COALESCE(?, current_period_end), cancel_at_period_end = ?,
+                  stripe_customer_id = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
               WHERE id = ?
-            `).run(customerEmailValue, periodEnd, cancelAtPeriodEnd ? 1 : 0, subscriberId);
+            `).run(userId || null, customerEmailValue, periodEnd, cancelAtPeriodEnd ? 1 : 0, customerId, subscriberId);
           }
-
-          const token = crypto.randomBytes(24).toString('hex');
-          await db.prepare('DELETE FROM subscriber_tokens WHERE subscriber_id = ?').run(subscriberId);
-          await db.prepare(`
-            INSERT INTO subscriber_tokens (token, subscriber_id, created_at, last_used_at)
-            VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-          `).run(token, subscriberId);
         }
 
         break;
@@ -127,18 +128,6 @@ export async function POST(request: NextRequest) {
           WHERE stripe_customer_id = ?
         `).run(status, periodEnd, cancelAtPeriodEnd, customerId);
 
-        const sub = await db.prepare('SELECT id FROM subscribers WHERE stripe_customer_id = ?').get(customerId) as any;
-        if (sub) {
-          if (status === 'active') {
-            if (cancelAtPeriodEnd && periodEnd) {
-              await db.prepare('UPDATE subscriber_tokens SET expires_at = ? WHERE subscriber_id = ?').run(periodEnd, sub.id);
-            } else {
-              await db.prepare('UPDATE subscriber_tokens SET expires_at = NULL WHERE subscriber_id = ?').run(sub.id);
-            }
-          } else if (periodEnd) {
-            await db.prepare('UPDATE subscriber_tokens SET expires_at = ? WHERE subscriber_id = ?').run(periodEnd, sub.id);
-          }
-        }
         break;
       }
 
@@ -156,11 +145,6 @@ export async function POST(request: NextRequest) {
                   cancel_at_period_end = 0, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
               WHERE stripe_customer_id = ?
             `).run(periodEnd, customerId);
-
-            const sub = await db.prepare('SELECT id FROM subscribers WHERE stripe_customer_id = ?').get(customerId) as any;
-            if (sub) {
-              await db.prepare('UPDATE subscriber_tokens SET expires_at = NULL WHERE subscriber_id = ?').run(sub.id);
-            }
           } catch {
             // ignore
           }
@@ -171,16 +155,10 @@ export async function POST(request: NextRequest) {
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as any;
         const customerId = String(subscription.customer);
-        const sub = await db.prepare('SELECT id FROM subscribers WHERE stripe_customer_id = ?').get(customerId) as any;
-        if (sub) {
-          await db.prepare(`
-            UPDATE subscribers SET status = 'cancelled', updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-            WHERE stripe_customer_id = ?
-          `).run(customerId);
-          await db.prepare(`
-            UPDATE subscriber_tokens SET expires_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE subscriber_id = ?
-          `).run(sub.id);
-        }
+        await db.prepare(`
+          UPDATE subscribers SET status = 'cancelled', updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          WHERE stripe_customer_id = ?
+        `).run(customerId);
         break;
       }
 
@@ -194,4 +172,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal error', detail: err.message }, { status: 500 });
   }
 }
-
