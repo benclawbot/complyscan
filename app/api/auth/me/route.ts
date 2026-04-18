@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/env';
-import { getBearerToken, verifySubscriberToken, getUserSession, touchSubscriberToken, touchUserSession } from '@/lib/auth';
+import { getSessionToken, getUserSession, touchUserSession, getActiveSubscriberForUser } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
-  const token = getBearerToken(request) || request.cookies.get('session_token')?.value || request.cookies.get('session')?.value;
+  const token = getSessionToken(request as any);
   if (!token) {
     return NextResponse.json({ authenticated: false }, { status: 401 });
   }
@@ -11,28 +11,28 @@ export async function GET(request: NextRequest) {
   const env: any = (request as any).env ?? (globalThis as any).__env ?? undefined;
   const db = getDb(env);
 
-  const subToken = await verifySubscriberToken(db, token);
-  if (subToken) {
-    await touchSubscriberToken(db, token);
-
-    return NextResponse.json({
-      authenticated: true,
-      email: subToken.email,
-      type: 'subscriber',
-      subscriberId: subToken.subscriber_id,
-      plan: subToken.plan,
-      status: subToken.status,
-      currentPeriodEnd: subToken.current_period_end,
-      cancelAtPeriodEnd: Boolean(subToken.cancel_at_period_end),
-    });
-  }
-
   const session = await getUserSession(db, token);
   if (!session) {
     return NextResponse.json({ authenticated: false }, { status: 401 });
   }
 
   await touchUserSession(db, token);
+
+  const subscriber = await getActiveSubscriberForUser(db, session.user_id);
+  if (subscriber) {
+    return NextResponse.json({
+      authenticated: true,
+      email: session.email,
+      type: 'subscriber',
+      subscriberId: subscriber.id,
+      plan: subscriber.plan,
+      status: subscriber.status,
+      currentPeriodEnd: subscriber.current_period_end,
+      cancelAtPeriodEnd: Boolean(subscriber.cancel_at_period_end),
+      userId: session.user_id,
+      credits: Number(session.credits ?? 0),
+    });
+  }
 
   return NextResponse.json({
     authenticated: true,
@@ -42,5 +42,3 @@ export async function GET(request: NextRequest) {
     credits: Number(session.credits ?? 0),
   });
 }
-
-

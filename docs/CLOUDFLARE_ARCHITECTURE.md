@@ -1,92 +1,41 @@
 # ComplyScan Cloudflare Architecture
 
-## Final production shape
-
-ComplyScan now runs as a split Cloudflare-native architecture:
+## Production shape
 
 1. Cloudflare Pages (`complyscan.pages.dev`)
-   - Serves the Next.js frontend
-   - Exposes lightweight API routes for auth, dashboard, reporting, and scan creation
-   - Does NOT run the heavy crawl/AI pipeline inline
+- Next.js frontend + lightweight API routes
+- Session-authenticated dashboard/report/payment routes
 
 2. Cloudflare Queue Worker (`compliance-checker-scan-processor`)
-   - Consumes `compliance-checker-scan-queue`
-   - Fetches and analyzes target sites
-   - Writes results back to D1
-   - Uses Workers AI when available, but fails open to a fallback score/result if AI fails
+- Consumes scan queue
+- Runs crawl + analysis pipeline
+- Writes results back to D1
 
-## Why this split exists
+## Auth/Payments architecture
 
-The original OpenNext Pages worker exceeded Cloudflare free-tier worker size/runtime constraints because it bundled heavy server code paths.
+- Authentication is cookie-based (`session`, HttpOnly).
+- Password + passkey login is supported.
+- Recovery is recovery-code based (no email reset).
+- Stripe checkout requires authenticated users and carries `metadata[userId]`.
+- Subscription entitlement is linked by `subscribers.user_id`.
+- No token URL auth (`?token=`) and no subscriber token table usage.
 
-The current architecture fixes that by:
-- keeping Pages routes thin
-- queueing scans instead of processing them inline
-- moving scan execution into a dedicated worker
-- making the scan worker self-contained instead of importing large app-side modules at runtime
+## Required bindings
 
-## Important implementation details
-
-### Pages build
-`package.json` build script copies:
-- `.open-next/worker.js` -> `.open-next/_worker.js`
-
-This is required so Cloudflare Pages recognizes the worker entry properly.
-
-### Runtime bindings
-The Pages app resolves Cloudflare bindings from OpenNext’s request context, not just `request.env`.
-
-Shared helper:
-- `lib/env.ts`
-- `getRuntimeEnv()` reads from OpenNext/Cloudflare context symbol and supports:
-  - `DB`
-  - `SCAN_QUEUE`
-  - `REPORTS_BUCKET`
-
-### Queue-backed scan endpoints
-The following endpoints now create/queue scans instead of running the full scan inline:
-- `/api/scan`
-- `/api/scan/free`
-- `/api/scan/subscriber`
-- `/api/scan/client`
-- `/api/scan/trigger`
-- `/api/scan/user`
-
-### Scan worker
-Worker file:
-- `workers/scan-processor/src/index.ts`
-
-Current behavior:
-- fetch-based crawl
-- lightweight HTML heuristics
-- rule-based GDPR checks
-- Workers AI analysis when available
-- fallback AI result when AI invocation/parsing fails
-
-## Required Cloudflare bindings
-
-### Pages project
-Production bindings:
+### Pages
 - D1: `DB`
 - Queue producer: `SCAN_QUEUE`
-- R2 bucket: `REPORTS_BUCKET`
-- AI binding: `AI`
+- R2 (optional): `REPORTS_BUCKET`
+- AI (optional): `AI`
 
 ### Worker
-Worker bindings:
 - D1: `DB`
 - Queue consumer: `SCAN_QUEUE`
-- AI binding: `AI`
-- optional Mailjet secrets for subscriber emails
+- AI: `AI`
 
 ## Operational notes
 
-- Pages site is healthy when `/` returns 200
-- Worker health endpoint:
-  - `https://compliance-checker-scan-processor.benclawbot.workers.dev/health`
-- Real production scans should move:
-  - `queued/pending` -> `processing` -> `completed`
-
-## Tradeoff
-
-The worker now uses a simplified fetch-based crawler instead of the original browser-heavy crawler. This was the necessary tradeoff to stay within Cloudflare constraints while keeping production scans working end-to-end.
+- Pages health: `/`
+- API health: `/api/health`
+- Worker health: `/health` endpoint on scan worker
+- Expected scan lifecycle: `pending` -> `processing` -> `completed`

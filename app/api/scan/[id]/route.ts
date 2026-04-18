@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, parseResultJson } from '@/lib/env';
-import { getBearerToken, verifySubscriberToken, getUserSession, touchSubscriberToken, touchUserSession } from '@/lib/auth';
+import { requireUserSession, getActiveSubscriberForUser } from '@/lib/auth';
 import { hasUnlockedReport, unlockReportWithCredit } from '@/lib/report-access';
 import { isNormalizedScanResultV2, normalizeScanResultV2 } from '@/lib/scan-normalize';
 
@@ -42,33 +42,26 @@ export async function GET(
         });
   }
 
-  const token = getBearerToken(request) || request.cookies.get('session_token')?.value || request.cookies.get('session')?.value || null;
+  const auth = await requireUserSession(request as any, db);
   let fullAccess = false;
 
-  if (token && scan.status === 'completed') {
-    const sub = await verifySubscriberToken(db, token);
-    if (sub) {
-      await touchSubscriberToken(db, token);
-      const authorized = !scan.subscriber_id || scan.subscriber_id === sub.subscriber_id || scan.email === sub.email;
-      fullAccess = authorized;
-    } else {
-      const user = await getUserSession(db, token);
-      if (user) {
-        await touchUserSession(db, token);
-        const authorized = !scan.user_id || scan.user_id === user.user_id || scan.email === user.email;
-        if (authorized) {
-          if (scan.subscriber_id) {
-            fullAccess = true;
-          } else {
-            const unlocked = await hasUnlockedReport(db, id);
-            if (unlocked) {
-              fullAccess = true;
-            } else {
-              const credits = Number(user.credits ?? 0);
-              if (credits > 0) {
-                fullAccess = await unlockReportWithCredit(db, user.user_id, id);
-              }
-            }
+  if (auth && scan.status === 'completed') {
+    const subscriber = await getActiveSubscriberForUser(db, auth.session.user_id);
+    const authorizedByUser = Boolean(scan.user_id) && scan.user_id === auth.session.user_id;
+    const authorizedBySubscriber = Boolean(subscriber?.id) && Boolean(scan.subscriber_id) && scan.subscriber_id === subscriber.id;
+    const authorizedByEmail = Boolean(scan.email) && scan.email === auth.session.email;
+
+    if (authorizedByUser || authorizedBySubscriber || authorizedByEmail) {
+      if (authorizedBySubscriber) {
+        fullAccess = true;
+      } else {
+        const unlocked = await hasUnlockedReport(db, id);
+        if (unlocked) {
+          fullAccess = true;
+        } else {
+          const credits = Number(auth.session.credits ?? 0);
+          if (credits > 0) {
+            fullAccess = await unlockReportWithCredit(db, auth.session.user_id, id);
           }
         }
       }
@@ -103,7 +96,3 @@ export async function GET(
     completed_at: scan.completed_at,
   });
 }
-
-
-
-

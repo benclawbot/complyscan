@@ -1,42 +1,31 @@
 # ComplyScan — GDPR Compliance Checker
 
-Automated GDPR compliance scanning: enter a URL and receive a full report with findings and fix suggestions.
+Automated GDPR compliance scanning: enter a URL and receive a report with findings and fix suggestions.
 
 ## Tech Stack
 
 - **Framework:** Next.js 15 (App Router)
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS
-- **Payments:** Stripe (UI only in this repo)
-- **Email:** Mailjet
+- **Payments:** Stripe (subscriptions + one-time credits)
+- **Auth:** Session cookie + password/passkey + recovery codes
 
-## Prerequisites
+## Authentication and Checkout Flow
 
-- Node.js 18+
-- npm 9+
+- Checkout is **auth-gated**: users must be logged in before Stripe session creation.
+- Access is **cookie-only** (`session` HttpOnly cookie).
+- Legacy token URL flow (`?token=...`) and email-link login are removed.
+- Password recovery uses one-time recovery codes (no email delivery).
 
 ## Setup
 
 ```bash
-# Clone the repository
-git clone <repo-url>
-cd compliance-checker
-
-# Install dependencies
 npm install
-
-# Copy environment variables
 cp .env.local.example .env.local
-
-# Start development server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to start.
-
-## Environment Variables
-
-See `.env.local.example` for all required variables.
+Open [http://localhost:3000](http://localhost:3000).
 
 ## Available Scripts
 
@@ -48,22 +37,3 @@ See `.env.local.example` for all required variables.
 | `npm run lint` | Run ESLint |
 | `npm test` | Run tests |
 | `npm run test:coverage` | Run tests with coverage |
-
-## Project Structure
-
-```
-app/
-  components/    # UI components (Navbar, Hero, Pricing, etc.)
-  lib/           # Utilities (cn helper)
-  layout.tsx     # Root layout with fonts + metadata
-  page.tsx       # Landing page
-  globals.css    # Global styles + Tailwind
-```
-
-## Notes
-
-- The `/api/scan` route is a UI placeholder. Backend logic is implemented in TASK-002.
-- Stripe Checkout buttons are UI placeholders. Full Stripe integration is in TASK-003.
-- Email functionality is UI placeholder only. Email delivery is in TASK-003.
-
-

@@ -31,6 +31,8 @@ export function getDb(): any {
 
 function initializeSchema(db: any) {
   db.exec(`
+    DROP TABLE IF EXISTS subscriber_tokens;
+
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
@@ -61,6 +63,7 @@ function initializeSchema(db: any) {
 
     CREATE TABLE IF NOT EXISTS subscribers (
       id TEXT PRIMARY KEY,
+      user_id TEXT,
       stripe_customer_id TEXT UNIQUE NOT NULL,
       email TEXT NOT NULL,
       plan TEXT NOT NULL DEFAULT 'monthly',
@@ -71,15 +74,6 @@ function initializeSchema(db: any) {
       updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
     );
 
-    CREATE TABLE IF NOT EXISTS subscriber_tokens (
-      token TEXT PRIMARY KEY,
-      subscriber_id TEXT NOT NULL,
-      expires_at TEXT,
-      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-      last_used_at TEXT,
-      FOREIGN KEY (subscriber_id) REFERENCES subscribers(id)
-    );
-
     CREATE TABLE IF NOT EXISTS agency_clients (
       id TEXT PRIMARY KEY,
       agency_subscriber_id TEXT NOT NULL,
@@ -87,6 +81,37 @@ function initializeSchema(db: any) {
       url TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
       FOREIGN KEY (agency_subscriber_id) REFERENCES subscribers(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS passkey_credentials (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      credential_id TEXT NOT NULL UNIQUE,
+      public_key TEXT NOT NULL,
+      counter INTEGER NOT NULL DEFAULT 0,
+      transports TEXT,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS webauthn_challenges (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      challenge TEXT NOT NULL,
+      purpose TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS recovery_codes (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      code_hash TEXT NOT NULL,
+      used_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+      FOREIGN KEY (user_id) REFERENCES users(id)
     );
   `);
 }

@@ -1,8 +1,8 @@
 export type StripeSessionPollResponse = {
-  subscriberToken?: string | null;
+  subscriptionReady?: boolean;
   customerEmail?: string | null;
 };
 
-export function shouldContinuePollingForSubscriberToken(data: StripeSessionPollResponse | null | undefined): boolean {
-  return !data?.subscriberToken;
+export function shouldContinuePollingForSubscription(data: StripeSessionPollResponse | null | undefined): boolean {
+  return !data?.subscriptionReady;
 }

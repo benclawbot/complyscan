@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, getRuntimeEnv, parseResultJson, getStripeSecrets } from '@/lib/env';
 import { generateReportHtml } from '@/lib/report';
 import { retrieveCheckoutSession } from '@/lib/stripe-api';
-import { getBearerToken, verifySubscriberToken, getUserSession, touchSubscriberToken, touchUserSession } from '@/lib/auth';
+import { requireUserSession, getActiveSubscriberForUser } from '@/lib/auth';
 import { getBranding } from '@/lib/branding';
 import { hasUnlockedReport, unlockReportWithCredit } from '@/lib/report-access';
 
@@ -35,41 +35,32 @@ export async function GET(
   const { scan, result } = await getScanResult(db, scanId);
 
   if (result && scan?.status === 'completed') {
-    const token = getBearerToken(request)
-      || request.nextUrl.searchParams.get('token')
-      || request.cookies.get('session_token')?.value
-      || request.cookies.get('session')?.value
-      || null;
+    const auth = await requireUserSession(request as any, db);
     let branding: any = null;
     let full = false;
 
-    if (token) {
-      const sub = await verifySubscriberToken(db, token);
-      if (sub) {
-        await touchSubscriberToken(db, token);
-        const authorized = !scan.subscriber_id || scan.subscriber_id === sub.subscriber_id || scan.email === sub.email;
-        if (!authorized) return jsonNoStore({ error: 'Forbidden' }, { status: 403 });
-        branding = await getBranding(db, { type: 'subscriber', id: sub.subscriber_id });
+    if (auth) {
+      const subscriber = await getActiveSubscriberForUser(db, auth.session.user_id);
+      const authorizedByUser = Boolean(scan.user_id) && scan.user_id === auth.session.user_id;
+      const authorizedBySubscriber = Boolean(subscriber?.id) && Boolean(scan.subscriber_id) && scan.subscriber_id === subscriber.id;
+      const authorizedByEmail = Boolean(scan.email) && scan.email === auth.session.email;
+
+      if (!authorizedByUser && !authorizedBySubscriber && !authorizedByEmail) {
+        return jsonNoStore({ error: 'Forbidden' }, { status: 403 });
+      }
+
+      if (authorizedBySubscriber && subscriber) {
+        branding = await getBranding(db, { type: 'subscriber', id: subscriber.id });
         full = true;
       } else {
-        const user = await getUserSession(db, token);
-        if (user) {
-          await touchUserSession(db, token);
-          const authorized = !scan.user_id || scan.user_id === user.user_id || scan.email === user.email;
-          if (!authorized) return jsonNoStore({ error: 'Forbidden' }, { status: 403 });
-          branding = await getBranding(db, { type: 'user', id: user.user_id });
-          if (scan.subscriber_id) {
-            full = true;
-          } else {
-            const unlocked = await hasUnlockedReport(db, scanId);
-            if (unlocked) {
-              full = true;
-            } else {
-              const credits = Number(user.credits ?? 0);
-              if (credits > 0) {
-                full = await unlockReportWithCredit(db, user.user_id, scanId);
-              }
-            }
+        branding = await getBranding(db, { type: 'user', id: auth.session.user_id });
+        const unlocked = await hasUnlockedReport(db, scanId);
+        if (unlocked) {
+          full = true;
+        } else {
+          const credits = Number(auth.session.credits ?? 0);
+          if (credits > 0) {
+            full = await unlockReportWithCredit(db, auth.session.user_id, scanId);
           }
         }
       }
@@ -117,8 +108,3 @@ export async function GET(
 
   return jsonNoStore({ error: 'Scan not yet complete' }, { status: 202 });
 }
-
-
-
-
-

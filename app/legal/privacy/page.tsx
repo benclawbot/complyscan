@@ -157,16 +157,8 @@ export default function PrivacyPage() {
                 </a>
               </li>
               <li>
-                <strong>Mailjet</strong> — for transactional email delivery (sending you scan
-                reports). Mailjet's privacy policy is available at:{" "}
-                <a
-                  href="https://www.mailjet.com/legal/privacy-policy/"
-                  className="text-accent-blue hover:underline"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-mailjet.com/legal/privacy-policy
-                </a>
+                <strong>Cloudflare</strong> — for application hosting, queue processing,
+                and database infrastructure used to run ComplyScan services.
               </li>
               <li>
                 <strong>Law enforcement and regulators</strong> — when required by law,
@@ -310,9 +302,9 @@ mailjet.com/legal/privacy-policy
             </h2>
             <p>
               ComplyScan processes data on servers located within the European Economic
-              Area (EEA). Where we use service providers outside the EEA (e.g., Mailjet
-              for email delivery), we ensure appropriate safeguards are in place, such
-              as Standard Contractual Clauses approved by the European Commission.
+              Area (EEA). Where we use service providers outside the EEA, we ensure
+              appropriate safeguards are in place, such as Standard Contractual Clauses
+              approved by the European Commission.
             </p>
           </section>
 

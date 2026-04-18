@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { csrfFetch } from '@/lib/client-csrf';
 
 interface DashboardClientProps {
   sessionToken: string;
@@ -215,7 +216,7 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
 
       setPendingAutoOpenScanIds((prev) => prev.filter((id) => id !== completedTarget.id));
       const query = isAgency ? '&agency=true' : '';
-      window.location.href = `/report/${completedTarget.id}?token=${encodeURIComponent(sessionToken)}${query}`;
+      window.location.href = `/report/${completedTarget.id}${query}`;
     }, 4000);
 
     return () => window.clearInterval(interval);
@@ -230,10 +231,10 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
     setError("");
 
     if (userType === "subscriber") {
-      const res = await fetch("/api/scan/subscriber", {
+      const res = await csrfFetch("/api/scan/subscriber", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, token: sessionToken }),
+        body: JSON.stringify({ url }),
       });
       const data = await res.json() as { scanId?: string; error?: string };
       if (!res.ok) {
@@ -251,7 +252,7 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
         setPendingAutoOpenScanIds((prev) => (prev.includes(data.scanId as string) ? prev : [...prev, data.scanId as string]));
       }
     } else {
-      const res = await fetch("/api/scan/user", {
+      const res = await csrfFetch("/api/scan/user", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -286,7 +287,7 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
     setClientError("");
     setClientSuccess("");
 
-    const res = await fetch("/api/clients", {
+    const res = await csrfFetch("/api/clients", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -312,13 +313,13 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
     setScanningClient(clientId);
     setClientError("");
 
-    const res = await fetch("/api/scan/client", {
+    const res = await csrfFetch("/api/scan/client", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${sessionToken}`,
       },
-      body: JSON.stringify({ clientId, token: sessionToken }),
+      body: JSON.stringify({ clientId }),
     });
 
     const data = await res.json() as { error?: string; scanId?: string };
@@ -346,7 +347,7 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
   const handleRemoveClient = async (clientId: string) => {
     if (!confirm("Are you sure you want to remove this client?")) return;
 
-    const res = await fetch(`/api/clients/${clientId}`, {
+    const res = await csrfFetch(`/api/clients/${clientId}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${sessionToken}` },
     });
@@ -361,14 +362,14 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
   };
 
   const handleLogout = () => {
-    document.cookie = "session=; Max-Age=0; path=/";
-    document.cookie = "session_token=; Max-Age=0; path=/";
-    window.location.href = "/";
+    csrfFetch('/api/auth/logout', { method: 'POST' }).finally(() => {
+      window.location.href = '/';
+    });
   };
 
   const handleManageSubscription = async () => {
     try {
-      const res = await fetch('/api/stripe/billing-portal', {
+      const res = await csrfFetch('/api/stripe/billing-portal', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -388,7 +389,7 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
 
   const handleBuyCredits = async (pack: 'credits_3' | 'credits_10') => {
     try {
-      const res = await fetch('/api/stripe/checkout-credits', {
+      const res = await csrfFetch('/api/stripe/checkout-credits', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -421,7 +422,7 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
     setBrandingStatus('');
     setBrandingSaving(true);
     try {
-      const res = await fetch('/api/branding', {
+      const res = await csrfFetch('/api/branding', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -479,6 +480,9 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
               <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded-full font-medium">
                 Agency Plan
               </span>
+              <Link href="/security" className="text-sm text-white/50 hover:text-white transition-colors">
+                Security
+              </Link>
               <button onClick={handleLogout} className="text-sm text-white/50 hover:text-white transition-colors">
                 Sign Out
               </button>
@@ -656,7 +660,7 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
                             <div className="flex items-center gap-2">
                               {client.lastScanStatus === "completed" && client.lastScanId && (
                                 <a
-                                  href={`/report/${client.lastScanId}?token=${encodeURIComponent(sessionToken)}`}
+                                  href={`/report/${client.lastScanId}`}
                                   className="text-xs bg-accent-blue/20 text-accent-blue px-3 py-1.5 rounded-lg hover:bg-accent-blue/30 transition-all"
                                 >
                                   View Report
@@ -717,7 +721,7 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
                           </div>
                           {scan.status === "completed" && (
                             <a
-                              href={`/report/${scan.id}?token=${encodeURIComponent(sessionToken)}&agency=true`}
+                              href={`/report/${scan.id}?agency=true`}
                               className="text-sm bg-accent-blue/20 text-accent-blue px-4 py-2 rounded-lg hover:bg-accent-blue/30 transition-all"
                             >
                               View Report
@@ -760,7 +764,7 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
                     </div>
                     {scan.status === "completed" && (
                       <a
-                        href={`/report/${scan.id}?token=${encodeURIComponent(sessionToken)}&agency=true`}
+                        href={`/report/${scan.id}?agency=true`}
                         className="text-sm bg-accent-blue/20 text-accent-blue px-4 py-2 rounded-lg hover:bg-accent-blue/30 transition-all"
                       >
                         View Report
@@ -792,6 +796,9 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
                 Monthly Plan
               </span>
             )}
+            <Link href="/security" className="text-sm text-white/50 hover:text-white transition-colors">
+              Security
+            </Link>
             <button onClick={handleLogout} className="text-sm text-white/50 hover:text-white transition-colors">
               Sign Out
             </button>
@@ -928,7 +935,7 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
                 </div>
                 {scan.status === "completed" && (
                   <a
-                    href={`/report/${scan.id}?token=${encodeURIComponent(sessionToken)}`}
+                    href={`/report/${scan.id}`}
                     className="text-sm bg-accent-blue/20 text-accent-blue px-4 py-2 rounded-lg hover:bg-accent-blue/30 transition-all"
                   >
                     View Report
@@ -942,6 +949,3 @@ export default function DashboardClient({ sessionToken }: DashboardClientProps) 
     </div>
   );
 }
-
-
-

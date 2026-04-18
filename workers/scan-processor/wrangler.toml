@@ -18,6 +18,5 @@ binding = "AI"
 [[queues.consumers]]
 queue = "compliance-checker-scan-queue"
 
-# Optional: Mailjet for email delivery in subscriber scans
-# Set MAILJET_API_KEY and MAILJET_SECRET_KEY in wrangler secrets
+# No email delivery is required for auth/recovery flows.
 [vars]

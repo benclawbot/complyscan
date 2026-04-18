@@ -3,7 +3,7 @@ import { getDb, getRuntimeEnv, parseResultJson } from '@/lib/env';
 import { generatePDF } from '@/lib/report-pdf';
 import { generateReportHtml } from '@/lib/report';
 import { buildMockScanResult } from '@/lib/mock-scan';
-import { getBearerToken, verifySubscriberToken, getUserSession, touchSubscriberToken, touchUserSession } from '@/lib/auth';
+import { requireUserSession, getActiveSubscriberForUser } from '@/lib/auth';
 import { getBranding } from '@/lib/branding';
 import { hasUnlockedReport, unlockReportWithCredit } from '@/lib/report-access';
 
@@ -64,49 +64,38 @@ export async function GET(
     return NextResponse.json({ error: 'Scan failed. Please try again.' }, { status: 500 });
   }
 
-  const token = getBearerToken(request)
-    || request.nextUrl.searchParams.get('token')
-    || request.cookies.get('session_token')?.value
-    || request.cookies.get('session')?.value
-    || null;
+  const auth = await requireUserSession(request as any, db);
+  if (!auth) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const subscriber = await getActiveSubscriberForUser(db, auth.session.user_id);
+  const authorizedByUser = Boolean(scan.user_id) && scan.user_id === auth.session.user_id;
+  const authorizedBySubscriber = Boolean(subscriber?.id) && Boolean(scan.subscriber_id) && scan.subscriber_id === subscriber.id;
+  const authorizedByEmail = Boolean(scan.email) && scan.email === auth.session.email;
+
+  if (!authorizedByUser && !authorizedBySubscriber && !authorizedByEmail) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   let branding: any = null;
+  if (authorizedBySubscriber && subscriber) {
+    branding = await getBranding(db, { type: 'subscriber', id: subscriber.id });
+  } else {
+    branding = await getBranding(db, { type: 'user', id: auth.session.user_id });
 
-  if (token) {
-    const sub = await verifySubscriberToken(db, token);
-    if (sub) {
-      await touchSubscriberToken(db, token);
-      const authorized = !scan.subscriber_id || scan.subscriber_id === sub.subscriber_id || scan.email === sub.email;
-      if (!authorized) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      branding = await getBranding(db, { type: 'subscriber', id: sub.subscriber_id });
-    } else {
-      const user = await getUserSession(db, token);
-      if (user) {
-        await touchUserSession(db, token);
-        const authorized = !scan.user_id || scan.user_id === user.user_id || scan.email === user.email;
-        if (!authorized) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-
-        branding = await getBranding(db, { type: 'user', id: user.user_id });
-
-        // If not a subscriber scan, enforce unlock with credits for PDF generation.
-        if (!scan.subscriber_id) {
-          const unlocked = await hasUnlockedReport(db, scanId);
-          if (!unlocked) {
-            const ok = await unlockReportWithCredit(db, user.user_id, scanId);
-            if (!ok) {
-              return NextResponse.json(
-                { error: 'Payment required', code: 'NO_CREDITS', credits: Number(user.credits ?? 0) },
-                { status: 402 }
-              );
-            }
-          }
+    if (!scan.subscriber_id) {
+      const unlocked = await hasUnlockedReport(db, scanId);
+      if (!unlocked) {
+        const ok = await unlockReportWithCredit(db, auth.session.user_id, scanId);
+        if (!ok) {
+          return NextResponse.json(
+            { error: 'Payment required', code: 'NO_CREDITS', credits: Number(auth.session.credits ?? 0) },
+            { status: 402 }
+          );
         }
       }
     }
-  }
-
-  // Without auth, only subscribers can access PDFs. (Users must claim the scan and spend credits.)
-  if (!token && !scan.subscriber_id) {
-    return NextResponse.json({ error: 'Payment required', code: 'UNAUTHORIZED' }, { status: 401 });
   }
 
   const fileBase = `gdpr-report-${scanId}`;
@@ -126,6 +115,3 @@ export async function GET(
     return htmlFallbackResponse(html, fileBase);
   }
 }
-
-
-

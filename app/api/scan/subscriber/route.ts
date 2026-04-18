@@ -4,44 +4,45 @@ import { getDb, getRuntimeEnv, sendScanJob, compressGzip } from '@/lib/env';
 import { crawlPage } from '@/lib/crawler';
 import { analyzeWithAI } from '@/lib/ai-analysis';
 import { runRuleBasedChecks } from '@/lib/gdpr-checks';
-import { getBearerToken, verifySubscriberToken, touchSubscriberToken } from '@/lib/auth';
+import { requireAgencySession } from '@/lib/auth';
 import { normalizeScanResultV2 } from '@/lib/scan-normalize';
+import { hasValidCsrf, csrfErrorResponse } from '@/lib/csrf';
 
-async function getSubscriberFromRequest(request: NextRequest, explicitToken?: string) {
+async function requireAgency(request: NextRequest) {
   const env: any = getRuntimeEnv((request as any).env ?? (globalThis as any).__env ?? undefined);
   const db = getDb(env);
-  const token = explicitToken || getBearerToken(request);
-  if (!token) return { db, token: null, subscriber: null };
-  const subscriber = await verifySubscriberToken(db, token);
-  return { db, token, subscriber };
+  const auth = await requireAgencySession(request as any, db);
+  return { env, db, auth };
 }
 
 export async function GET(request: NextRequest) {
-  const { db, token, subscriber } = await getSubscriberFromRequest(request);
-  if (!token || !subscriber) {
-    return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
+  const { db, auth } = await requireAgency(request);
+  if (!auth) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-
-  await touchSubscriberToken(db, token);
 
   const scans = await db.prepare(`
     SELECT id, url, status, created_at, completed_at
     FROM scans
-    WHERE email = ?
+    WHERE subscriber_id = ?
     ORDER BY created_at DESC
     LIMIT 50
-  `).all(subscriber.email);
+  `).all(auth.subscriber.id);
 
   return NextResponse.json({ scans });
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json() as { url?: string; token?: string };
-    const { url, token: explicitToken } = body;
+  if (!hasValidCsrf(request as any)) {
+    return csrfErrorResponse();
+  }
 
-    if (!url || !explicitToken) {
-      return NextResponse.json({ error: 'URL and token are required' }, { status: 400 });
+  try {
+    const body = await request.json() as { url?: string };
+    const { url } = body;
+
+    if (!url) {
+      return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
     try {
@@ -53,26 +54,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
     }
 
-    const { db, token, subscriber } = await getSubscriberFromRequest(request, explicitToken);
-    if (!token || !subscriber) {
-      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
+    const { env, db, auth } = await requireAgency(request);
+    if (!auth) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    await touchSubscriberToken(db, token);
 
     const scanId = uuidv4();
     await db.prepare(`
       INSERT INTO scans (id, url, email, status, subscriber_id, created_at)
       VALUES (?, ?, ?, 'pending', ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-    `).run(scanId, url, subscriber.email, subscriber.subscriber_id);
+    `).run(scanId, url, auth.session.email, auth.subscriber.id);
 
-    const env: any = getRuntimeEnv((request as any).env ?? (globalThis as any).__env ?? undefined);
     if (env?.SCAN_QUEUE) {
-      await sendScanJob({ scanId, url, email: subscriber.email, trigger: 'subscriber' }, env);
+      await sendScanJob({ scanId, url, email: auth.session.email, trigger: 'subscriber' }, env);
       return NextResponse.json({ scanId, status: 'queued', message: 'Scan queued.' });
     }
 
-    // No queue configured — run synchronously
     await db.prepare(`UPDATE scans SET status = 'processing' WHERE id = ?`).run(scanId);
 
     let crawlResult;
@@ -104,4 +101,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-

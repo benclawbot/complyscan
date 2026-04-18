@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, getRuntimeEnv, getStripeSecrets } from '@/lib/env';
-import { getBearerToken, getUserSession, touchUserSession } from '@/lib/auth';
+import { requireUserSession } from '@/lib/auth';
+import { hasValidCsrf, csrfErrorResponse } from '@/lib/csrf';
 
 type Pack = 'credits_3' | 'credits_10';
 
@@ -35,10 +36,11 @@ async function resolveFallbackPriceId(stripeKey: string, pack: Pack): Promise<st
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    const token = getBearerToken(request) || request.cookies.get('session_token')?.value || request.cookies.get('session')?.value;
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!hasValidCsrf(request as any)) {
+    return csrfErrorResponse();
+  }
 
+  try {
     const { pack } = await request.json() as { pack?: Pack };
     if (pack !== 'credits_3' && pack !== 'credits_10') {
       return NextResponse.json({ error: 'Invalid pack' }, { status: 400 });
@@ -46,18 +48,16 @@ export async function POST(request: NextRequest) {
 
     const env: any = getRuntimeEnv((request as any).env ?? (globalThis as any).__env ?? undefined);
     const db = getDb(env);
-
-    const session = await getUserSession(db, token);
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    await touchUserSession(db, token);
+    const auth = await requireUserSession(request as any, db);
+    if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const appUrl = env?.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://complyscan.pages.dev';
     const MOCK_STRIPE = env?.MOCK_STRIPE === '1' || process.env?.MOCK_STRIPE === '1';
 
     if (MOCK_STRIPE) {
       const credits = packToCredits(pack);
-      await db.prepare(`UPDATE users SET credits = credits + ? WHERE id = ?`).run(credits, session.user_id);
-      return NextResponse.json({ url: `${appUrl}/dashboard?token=${encodeURIComponent(token)}&credits_added=${credits}` });
+      await db.prepare(`UPDATE users SET credits = credits + ? WHERE id = ?`).run(credits, auth.session.user_id);
+      return NextResponse.json({ url: `${appUrl}/dashboard?credits_added=${credits}` });
     }
 
     const stripeSecrets = getStripeSecrets(request as any);
@@ -80,11 +80,11 @@ export async function POST(request: NextRequest) {
     params.append('mode', 'payment');
     params.append('line_items[0][price]', priceId);
     params.append('line_items[0][quantity]', '1');
-    params.append('success_url', `${appUrl}/dashboard?token=${encodeURIComponent(token)}&session_id={CHECKOUT_SESSION_ID}&credits_added=${credits}`);
-    params.append('cancel_url', `${appUrl}/dashboard?token=${encodeURIComponent(token)}&cancelled=true`);
-    params.append('customer_email', session.email);
+    params.append('success_url', `${appUrl}/dashboard?session_id={CHECKOUT_SESSION_ID}&credits_added=${credits}`);
+    params.append('cancel_url', `${appUrl}/dashboard?cancelled=true`);
+    params.append('customer_email', auth.session.email);
     params.append('metadata[purchaseType]', 'credits');
-    params.append('metadata[userId]', String(session.user_id));
+    params.append('metadata[userId]', String(auth.session.user_id));
     params.append('metadata[credits]', String(credits));
 
     const resp = await fetch('https://api.stripe.com/v1/checkout/sessions', {
@@ -107,4 +107,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: err?.message || 'Checkout failed' }, { status: 500 });
   }
 }
-

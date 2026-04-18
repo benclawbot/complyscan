@@ -70,10 +70,9 @@ test.describe('ComplyScan local E2E', () => {
       }
     }
 
-    await page.waitForURL(/\/dashboard(\?token=.*)?$/, { timeout: 60_000 });
+    await page.waitForURL(/\/dashboard(\?|$)/, { timeout: 60_000 });
   });
 });
-
 
 
 

@@ -1,62 +1,49 @@
-# ComplyScan Full Workflow Testing Plan
+# ComplyScan Workflow Testing Plan
 
 ## Environment
-- App URL: https://complyscan.pages.dev (Cloudflare Pages)
-- Local Dev: http://localhost:8787 (wrangler pages dev)
-- Test Website: https://example.com
+- App URL: https://complyscan.pages.dev
+- Local dev: http://localhost:8787
 - Stripe: Test mode
 
-## Test Credentials
-- Test card (Stripe): 4242 4242 4242 4242 | any future date | any CVV
-- Test email: use unique test emails per run
+## Core suites
 
-## Critical env vars
-```
-STRIPE_SECRET_KEY=***
-STRIPE_WEBHOOK_SECRET=***
-STRIPE_PRICE_MONTHLY=price_...
-BROWSERLESS_API_KEY=***
-MINIMAX_API_KEY=***
-DATABASE_PATH=/tmp/complyscan.db
-NEXT_PUBLIC_APP_URL=https://complyscan.pages.dev
-```
-
-## Test Suites
-
-### SUITE 1: Free scan flow
-Flow: Homepage -> Enter URL + email -> Scan Free -> Scan results
+### 1) Auth and recovery
+Flow: Signup/Login -> Dashboard -> Logout -> Login again
 
 Expected:
-- Results page loads
-- GDPR score/risk visible
-- Rule checks and AI analysis visible
-- Free preview banner visible
-- Upgrade-to-Agency CTA visible
+- `session` cookie auth works
+- Dashboard loads after login
+- Logout revokes server session
+- Recovery code reset works without email
 
-### SUITE 2: Agency subscription checkout
-Flow: Pricing -> Start Agency -> Stripe checkout -> Success -> Dashboard
-
-Expected:
-- Stripe checkout opens
-- Payment succeeds in test mode
-- Success page shows "Subscription Active"
-- Dashboard link works
-- Dashboard loads with subscriber context
-
-### SUITE 3: Full report rendering + browser print
-Flow: Results/Report page -> open full report -> Print / Save as PDF
+### 2) Passkey flow
+Flow: Dashboard -> Security -> Add passkey -> Login with passkey
 
 Expected:
-- Full report sections render correctly
-- Print button opens print dialog/new tab print flow
-- Browser Save as PDF works (no dedicated export API required)
+- Passkey registration succeeds
+- Passkey login creates a valid `session`
+- Passkey appears in security list and can be removed
 
-## Success criteria checklist
-- [ ] Free scan completes on production URL
-- [ ] Results page renders all major sections
-- [ ] Upgrade CTA appears for free preview
-- [ ] Agency checkout succeeds in test mode
-- [ ] Dashboard accessible after subscription
-- [ ] Full report view loads successfully
-- [ ] Browser print/save-as-PDF works
-- [ ] No critical console errors
+### 3) Checkout gating and linkage
+Flow: Pricing -> Start Agency / Buy Credits
+
+Expected:
+- Unauthenticated users are prompted to authenticate
+- Authenticated users get Stripe checkout URL
+- Webhook/session reconciliation links purchase to authenticated `user_id`
+
+### 4) Post-payment access
+Flow: Stripe success -> `/success` -> `/dashboard`
+
+Expected:
+- Subscription status reflected on dashboard
+- Credits reflected after credits purchase
+- No `?token=` URL auth required
+
+### 5) Report and PDF access
+Flow: Dashboard -> report -> PDF
+
+Expected:
+- Access controlled by session ownership (user/subscriber)
+- No query-token auth fallback
+- Credit gating for paid PDF path still enforced

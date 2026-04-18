@@ -2,19 +2,33 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { csrfFetch } from '@/lib/client-csrf';
 
 type Mode = "login" | "signup";
+
+function b64urlToBuffer(value: string): ArrayBuffer {
+  const padding = '='.repeat((4 - (value.length % 4)) % 4);
+  const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+function bufferToB64url(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
 
 export default function LoginPage() {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [error, setError] = useState("");
-  const [subscriberEmail, setSubscriberEmail] = useState("");
-  const [subscriberLoading, setSubscriberLoading] = useState(false);
-  const [subscriberError, setSubscriberError] = useState("");
-  const [subscriberSuccess, setSubscriberSuccess] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,7 +40,7 @@ export default function LoginPage() {
     const endpoint = mode === "signup" ? "/api/auth/signup" : "/api/auth/login";
 
     try {
-      const res = await fetch(endpoint, {
+      const res = await csrfFetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -39,7 +53,6 @@ export default function LoginPage() {
         return;
       }
 
-      // Redirect to dashboard on success
       window.location.href = "/dashboard";
     } catch {
       setError("Failed to connect. Please try again.");
@@ -48,39 +61,79 @@ export default function LoginPage() {
     }
   };
 
-  const handleSubscriberAccess = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!subscriberEmail) return;
+  const handlePasskeySignIn = async () => {
+    if (!email) {
+      setError('Email is required for passkey sign in.');
+      return;
+    }
 
-    setSubscriberLoading(true);
-    setSubscriberError("");
-    setSubscriberSuccess("");
+    setPasskeyLoading(true);
+    setError('');
 
     try {
-      const res = await fetch('/api/login', {
+      const start = await csrfFetch('/api/auth/passkey/login/options', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: subscriberEmail }),
+        body: JSON.stringify({ email }),
       });
 
-      const data = await res.json() as { message?: string; error?: string };
-      if (!res.ok) {
-        setSubscriberError(data.error || 'Unable to send secure login email.');
+      const optionsData = await start.json() as any;
+      if (!start.ok) {
+        setError(optionsData.error || 'Unable to start passkey sign in.');
         return;
       }
 
-      setSubscriberSuccess(data.message || 'If the email matches an active subscription, we sent a secure dashboard link.');
+      const credential = await navigator.credentials.get({
+        publicKey: {
+          challenge: b64urlToBuffer(optionsData.challenge),
+          rpId: optionsData.rpId,
+          timeout: optionsData.timeout ?? 60000,
+          userVerification: optionsData.userVerification ?? 'preferred',
+          allowCredentials: (optionsData.allowCredentials || []).map((item: any) => ({
+            id: b64urlToBuffer(item.id),
+            type: 'public-key',
+            transports: item.transports,
+          })),
+        },
+      }) as PublicKeyCredential | null;
+
+      if (!credential) {
+        setError('No passkey selected.');
+        return;
+      }
+
+      const assertion = credential.response as AuthenticatorAssertionResponse;
+      const verify = await csrfFetch('/api/auth/passkey/login/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          challengeId: optionsData.challengeId,
+          credentialId: bufferToB64url(credential.rawId),
+          authenticatorData: bufferToB64url(assertion.authenticatorData),
+          clientDataJSON: bufferToB64url(assertion.clientDataJSON),
+          signature: bufferToB64url(assertion.signature),
+          userHandle: assertion.userHandle ? bufferToB64url(assertion.userHandle) : null,
+        }),
+      });
+
+      const verifyData = await verify.json() as any;
+      if (!verify.ok) {
+        setError(verifyData.error || 'Passkey sign in failed.');
+        return;
+      }
+
+      window.location.href = '/dashboard';
     } catch {
-      setSubscriberError('Failed to connect. Please try again.');
+      setError('Passkey sign in failed. Please try password sign in.');
     } finally {
-      setSubscriberLoading(false);
+      setPasskeyLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-midnight flex items-center justify-center px-4">
       <div className="max-w-md w-full">
-        {/* Header */}
         <div className="text-center mb-8">
           <Link href="/" className="font-heading text-2xl font-bold text-white hover:text-accent-glow transition-colors">
             ComplyScan
@@ -93,7 +146,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-1 mb-6 bg-midnight-light rounded-lg p-1">
           <button
             onClick={() => { setMode("login"); setError(""); }}
@@ -117,7 +169,6 @@ export default function LoginPage() {
           </button>
         </div>
 
-        {/* Card */}
         <div className="bg-midnight-light border border-white/10 rounded-2xl p-8">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -151,9 +202,7 @@ export default function LoginPage() {
               />
             </div>
 
-            {error && (
-              <p className="text-red-400 text-sm">{error}</p>
-            )}
+            {error && <p className="text-red-400 text-sm">{error}</p>}
 
             <button
               type="submit"
@@ -165,32 +214,25 @@ export default function LoginPage() {
                 : mode === "signup" ? "Create Account" : "Sign In"}
             </button>
           </form>
-        </div>
 
-        <div className="bg-midnight-light border border-white/10 rounded-2xl p-6 mt-5">
-          <h2 className="text-white font-semibold mb-1">Agency subscriber access</h2>
-          <p className="text-white/50 text-sm mb-4">
-            Already on the Agency plan? Enter your billing email and we&apos;ll send a secure dashboard link.
-          </p>
-          <form onSubmit={handleSubscriberAccess} className="space-y-3">
-            <input
-              type="email"
-              value={subscriberEmail}
-              onChange={(e) => setSubscriberEmail(e.target.value)}
-              placeholder="agency@yourcompany.com"
-              required
-              className="w-full rounded-lg bg-midnight border border-white/20 px-4 py-3 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-accent-blue"
-            />
-            {subscriberError && <p className="text-red-400 text-sm">{subscriberError}</p>}
-            {subscriberSuccess && <p className="text-green-400 text-sm">{subscriberSuccess}</p>}
-            <button
-              type="submit"
-              disabled={subscriberLoading}
-              className="w-full rounded-lg bg-white/10 px-6 py-3 font-semibold text-white hover:bg-white/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {subscriberLoading ? 'Sending link...' : 'Email me my dashboard link'}
-            </button>
-          </form>
+          {mode === 'login' && (
+            <>
+              <div className="my-5 border-t border-white/10" />
+              <button
+                type="button"
+                onClick={handlePasskeySignIn}
+                disabled={passkeyLoading}
+                className="w-full rounded-lg bg-white/10 px-6 py-3 font-semibold text-white hover:bg-white/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {passkeyLoading ? 'Waiting for passkey...' : 'Sign in with Passkey'}
+              </button>
+              <div className="text-right mt-3">
+                <Link href="/forgot-password" className="text-sm text-white/60 hover:text-white/80 transition-colors">
+                  Forgot password?
+                </Link>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="text-center mt-6">
@@ -202,10 +244,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-
-
-
-
-
-

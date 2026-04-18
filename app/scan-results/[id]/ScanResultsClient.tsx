@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CheckCircle, XCircle, AlertTriangle, FileText, RefreshCw, Lock, Zap } from "lucide-react";
+import { csrfFetch } from '@/lib/client-csrf';
 
 interface Props {
   scanId: string;
@@ -257,12 +258,16 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
   const handleUpgradeToAgency = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/stripe/checkout', {
+      const res = await csrfFetch('/api/stripe/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, email, plan: 'monthly' }),
+        body: JSON.stringify({ url, plan: 'monthly' }),
       });
       const data = await res.json() as { url?: string; error?: string };
+      if (res.status === 401) {
+        setShowAccountModal(true);
+        return;
+      }
       if (data.url) {
         window.location.href = data.url;
       } else {
@@ -277,7 +282,7 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
 
   const handleBuyCredits = async (pack: 'credits_3' | 'credits_10') => {
     try {
-      const res = await fetch('/api/stripe/checkout-credits', {
+      const res = await csrfFetch('/api/stripe/checkout-credits', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pack }),
@@ -299,11 +304,8 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
 
   const handleDownloadPdf = async () => {
     try {
-      const token = new URLSearchParams(window.location.search).get('token') || '';
-      const pdfUrl = `/api/report/${encodeURIComponent(scanId)}/pdf${token ? `?token=${encodeURIComponent(token)}` : ''}`;
-      const res = await fetch(pdfUrl, {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
+      const pdfUrl = `/api/report/${encodeURIComponent(scanId)}/pdf`;
+      const res = await fetch(pdfUrl);
       if (res.status === 401) {
         setShowAccountModal(true);
         return;
@@ -327,7 +329,7 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
     setAccountError("");
     setAccountLoading(true);
     try {
-      const res = await fetch('/api/auth/claim-scan', {
+      const res = await csrfFetch('/api/auth/claim-scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: accountEmail, password: accountPassword, scanId }),
@@ -339,7 +341,7 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
       }
       setAccountSuccess(true);
       setTimeout(() => {
-        window.location.href = `/dashboard?token=${encodeURIComponent(data.token || '')}`;
+        window.location.href = '/dashboard';
       }, 1200);
     } catch {
       setAccountError('Network error. Please try again.');
@@ -522,8 +524,4 @@ export default function ScanResultsClient({ scanId, url: initialUrl, email: init
     </div>
   );
 }
-
-
-
-
 

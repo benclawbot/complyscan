@@ -6,14 +6,8 @@ export function getBearerToken(request: Request): string | null {
   return header.startsWith('Bearer ') ? header.slice(7).trim() : null;
 }
 
-export async function getSubscriberTokenRecord(db: DbClient, token: string) {
-  return await db.prepare(`
-    SELECT st.token, st.subscriber_id, st.expires_at, st.created_at, st.last_used_at,
-           s.email, s.plan, s.status, s.current_period_end, s.cancel_at_period_end
-    FROM subscriber_tokens st
-    JOIN subscribers s ON s.id = st.subscriber_id
-    WHERE st.token = ?
-  `).get(token) as any;
+export function getSessionToken(request: Request & { cookies?: { get(name: string): { value: string } | undefined } }): string | null {
+  return getBearerToken(request) || request.cookies?.get('session')?.value || null;
 }
 
 function isPast(isoValue?: string | null): boolean {
@@ -25,27 +19,8 @@ function isPast(isoValue?: string | null): boolean {
 
 function isSubscriberAccessExpired(rec: any): boolean {
   if (!rec) return true;
-  if (rec.expires_at && isPast(rec.expires_at)) return true;
   const cancellationReachedEnd = Boolean(rec.cancel_at_period_end) && isPast(rec.current_period_end);
-  if (cancellationReachedEnd) return true;
-  return false;
-}
-
-export async function verifySubscriberToken(db: DbClient, token: string, requiredPlan?: 'agency') {
-  const rec = await getSubscriberTokenRecord(db, token);
-  if (!rec) return null;
-  if (rec.status !== 'active') return null;
-  if (isSubscriberAccessExpired(rec)) return null;
-  if (requiredPlan && rec.plan !== requiredPlan) return null;
-  return rec;
-}
-
-export async function touchSubscriberToken(db: DbClient, token: string) {
-  await db.prepare(`
-    UPDATE subscriber_tokens
-    SET last_used_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-    WHERE token = ?
-  `).run(token);
+  return cancellationReachedEnd;
 }
 
 export async function getUserSession(db: DbClient, token: string) {
@@ -84,7 +59,48 @@ export async function touchUserSession(db: DbClient, token: string) {
     const message = String(err?.message || err || '');
     const missingLastUsed = /no such column: last_used_at/i.test(message) || /no such column.*last_used_at/i.test(message);
     if (!missingLastUsed) throw err;
-    // Backward-compat for older DB schemas: ignore touch update when column is absent.
   }
 }
 
+export async function getActiveSubscriberForUser(db: DbClient, userId: string, requiredPlan?: 'agency') {
+  const subscriber = await db.prepare(`
+    SELECT id, user_id, email, plan, status, current_period_end, cancel_at_period_end
+    FROM subscribers
+    WHERE user_id = ?
+    ORDER BY updated_at DESC
+    LIMIT 1
+  `).get(userId) as any;
+
+  if (!subscriber) return null;
+  if (subscriber.status !== 'active') return null;
+  if (requiredPlan && subscriber.plan !== requiredPlan) return null;
+  if (isSubscriberAccessExpired(subscriber)) return null;
+  return subscriber;
+}
+
+export async function revokeSession(db: DbClient, token: string) {
+  await db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+}
+
+export async function requireUserSession(
+  request: Request & { cookies?: { get(name: string): { value: string } | undefined } },
+  db: DbClient
+) {
+  const token = getSessionToken(request);
+  if (!token) return null;
+  const session = await getUserSession(db, token);
+  if (!session) return null;
+  await touchUserSession(db, token);
+  return { token, session };
+}
+
+export async function requireAgencySession(
+  request: Request & { cookies?: { get(name: string): { value: string } | undefined } },
+  db: DbClient
+) {
+  const auth = await requireUserSession(request, db);
+  if (!auth) return null;
+  const subscriber = await getActiveSubscriberForUser(db, auth.session.user_id, 'agency');
+  if (!subscriber) return null;
+  return { ...auth, subscriber };
+}
