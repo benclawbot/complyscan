@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/complyscan-banner.svg" alt="ComplyScan" width="100%" />
+</p>
+
 # ComplyScan — GDPR Compliance Checker
 
 Automated GDPR compliance scanning: enter a URL and receive a report with findings and fix suggestions.
