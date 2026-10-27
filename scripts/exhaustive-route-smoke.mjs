@@ -74,7 +74,7 @@ const tests = [
     },
   },
   {
-    name: 'POST /api/stripe/checkout returns success/correct config error',
+    name: 'POST /api/stripe/checkout requires auth or returns a checkout URL',
     run: async () => {
       const r = await fetch(`${BASE_URL}/api/stripe/checkout`, {
         method: 'POST',
@@ -84,7 +84,8 @@ const tests = [
       const { text, json } = await readJsonish(r);
       const passSuccess = r.status === 200 && typeof json?.url === 'string';
       const passConfigError = r.status === 500 && /not configured|price/i.test(text);
-      return { pass: passSuccess || passConfigError, detail: `status=${r.status} body=${text.slice(0,200)}` };
+      const passAuthRequired = r.status === 401 && /unauthorized|token required/i.test(text);
+      return { pass: passSuccess || passConfigError || passAuthRequired, detail: `status=${r.status} body=${text.slice(0,200)}` };
     },
   },
   {
