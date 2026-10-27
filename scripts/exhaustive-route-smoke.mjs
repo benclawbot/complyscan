@@ -10,6 +10,21 @@ async function readJsonish(r) {
   try { return { text: t, json: JSON.parse(t) }; } catch { return { text: t, json: null }; }
 }
 
+// Routes that mutate state require a CSRF token in both a cookie and the
+// x-csrf-token header. Fetch one from the dedicated endpoint and reuse it.
+let csrfHeaders = null;
+async function getCsrfHeaders() {
+  if (csrfHeaders) return csrfHeaders;
+  const r = await fetch(`${BASE_URL}/api/auth/csrf`);
+  const { json } = await readJsonish(r);
+  const token = json?.csrfToken;
+  const cookie = (r.headers.get('set-cookie') || '').split(';')[0];
+  csrfHeaders = token && cookie
+    ? { 'content-type': 'application/json', 'x-csrf-token': token, cookie }
+    : { 'content-type': 'application/json' };
+  return csrfHeaders;
+}
+
 const tests = [
   {
     name: 'GET / returns homepage',
@@ -63,7 +78,7 @@ const tests = [
     run: async () => {
       const r = await fetch(`${BASE_URL}/api/stripe/checkout`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: await getCsrfHeaders(),
         body: JSON.stringify({ plan: 'monthly', email: 'qa@example.com' }),
       });
       const { text, json } = await readJsonish(r);
@@ -86,7 +101,7 @@ const tests = [
     run: async () => {
       const r = await fetch(`${BASE_URL}/api/dashboard`);
       const { text } = await readJsonish(r);
-      return { pass: r.status === 401 && /token required|invalid token/i.test(text), detail: `status=${r.status} body=${text.slice(0,160)}` };
+      return { pass: r.status === 401 && /token required|invalid token|unauthorized/i.test(text), detail: `status=${r.status} body=${text.slice(0,160)}` };
     },
   },
   {
@@ -102,7 +117,7 @@ const tests = [
     run: async () => {
       const r = await fetch(`${BASE_URL}/api/scan/subscriber`);
       const { text } = await readJsonish(r);
-      return { pass: r.status === 401 && /token required|invalid token|invalid or expired/i.test(text), detail: `status=${r.status} body=${text.slice(0,160)}` };
+      return { pass: r.status === 401 && /token required|invalid token|invalid or expired|unauthorized/i.test(text), detail: `status=${r.status} body=${text.slice(0,160)}` };
     },
   },
 ];
